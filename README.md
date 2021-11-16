@@ -32,6 +32,8 @@ echo "done"
 
 Dependent upon the nix environment. Requires Plutus to be in the folder.
 
+This requires two terminals to use.
+
 ```bash
 # First Terminal
 cd plutus

@@ -99,9 +99,9 @@ vestingContractParams = VestingContractParams
 -------------------------------------------------------------------------------
 
 data CustomDatumType = CustomDatumType 
-  { cdtVestAmount      :: !Value
+  { cdtVestAmount      :: !Integer
   -- ^ The amount of lovelace the user is allowed to extract.
-  , cdtVestDeadline    :: !POSIXTime
+  , cdtVestDeadline    :: !Integer
   -- ^ Fund must be retrieved after this deadline.
   , cdtVestingUserPKH  :: !PubKeyHash
   -- ^ The public key hash of the receiver.
@@ -131,12 +131,6 @@ PlutusTx.makeLift ''CustomRedeemerType
 
 validator :: Plutus.Validator
 validator = Scripts.validatorScript (typedValidator vestingContractParams)
-  -- where 
-  --   vc = VestingContractParams
-  --     { vcMajorityParam = 3 -- | This may need to be inside the datum
-  --     , vcPolicyID      = "5243f6530c3507a3ed1217848475abb5ec0ec122e00c82e878ff2292"  -- | sample pid
-  --     , vcTokenName     = "TokenC"  -- | sample tn
-  --     }
 
 
 -------------------------------------------------------------------------------
@@ -287,8 +281,16 @@ typedValidator vc = Scripts.mkTypedValidator @Typed
 -------------------------------------------------------------------------------
 -- | Off Chain
 -------------------------------------------------------------------------------
+
+data SupplyParams = SupplyParams
+    { sAmount   :: !Integer
+    , sDeadline :: !Integer
+    , sVester   :: !PubKeyHash
+    , sGroup    :: ![PubKeyHash]
+    } deriving (Generic, ToJSON, FromJSON, ToSchema)
+
 type Schema =
-    Endpoint "supply" ()
+    Endpoint "supply" SupplyParams
     .\/ Endpoint "redeem" ()
     .\/ Endpoint "refund" ()
 
@@ -297,33 +299,36 @@ contract = selectList [supply, redeem, refund] >> contract
 
 -- | The redeem endpoint.
 redeem :: AsContractError e => Promise () Schema e ()
-reddem =  endpoint @"redeem" @() $ \() -> do
+redeem =  endpoint @"redeem" @() $ \() -> do
     buyer          <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
-    unspentOutputs <- utxosAt (Ledger.scriptAddress $ Scripts.validatorScript (typedValidator dfb))
-    let tx = collectFromScript unspentOutputs Run PlutusTx.Prelude.<> Constraints.mustPayToPubKey buyer (Ada.lovelaceValueOf 1)
+    unspentOutputs <- utxosAt (Ledger.scriptAddress $ Scripts.validatorScript (typedValidator vestingContractParams))
+    let tx = collectFromScript unspentOutputs Redeem PlutusTx.Prelude.<> Constraints.mustPayToPubKey buyer (Ada.lovelaceValueOf 1)
     void $ submitTxConstraintsSpending (typedValidator vestingContractParams) unspentOutputs tx
 
 -- | The refund endpoint.
 refund :: AsContractError e => Promise () Schema e ()
 refund =  endpoint @"refund" @() $ \() -> do
     buyer          <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
-    unspentOutputs <- utxosAt (Ledger.scriptAddress $ Scripts.validatorScript (typedValidator dfb))
-    let tx = collectFromScript unspentOutputs Run PlutusTx.Prelude.<> Constraints.mustPayToPubKey buyer (Ada.lovelaceValueOf 1)
+    unspentOutputs <- utxosAt (Ledger.scriptAddress $ Scripts.validatorScript (typedValidator vestingContractParams))
+    let tx = collectFromScript unspentOutputs Refund PlutusTx.Prelude.<> Constraints.mustPayToPubKey buyer (Ada.lovelaceValueOf 1)
     void $ submitTxConstraintsSpending (typedValidator vestingContractParams) unspentOutputs tx
 
 -- | The supply endpoint.
 supply :: AsContractError e => Promise () Schema e ()
-supply =  endpoint @"supply" @() $ \() -> do
-    player <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
-    if Value.lt amount (Ada.lovelaceValueOf 10) -- Make this like 2 ada in production
-    then logInfo @String $ "Wrong Amount of ADA"
-    else do
-        let gameDatum = CustomDatumType {cdtPlayerPKH = player, cdtValue = amount}
-        logInfo @String $ "DATUM HASH"
-        logInfo @DatumHash $ Ledger.datumHash (Datum (PlutusTx.toBuiltinData gameDatum))
-        let tx = Constraints.mustPayToTheScript gameDatum amount PlutusTx.Prelude.<> Constraints.mustBeSignedBy player PlutusTx.Prelude.<> Constraints.mustIncludeDatum (Datum $ PlutusTx.toBuiltinData gameDatum  )
-        void $ submitTxConstraints (typedValidator vestingContractParams) tx
-        logInfo @String $ "Treasury Supplied the Supply."
+supply =  endpoint @"supply" @SupplyParams $ \(SupplyParams {..}) -> do
+    treasury <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
+    let vestDatum = CustomDatumType { cdtVestAmount      = sAmount
+                                    , cdtVestDeadline    = sDeadline
+                                    , cdtVestingUserPKH  = sVester
+                                    , cdtVestingGroupPKH = sGroup
+                                    , cdtTreasuryPKH     = treasury
+                                    }
+    logInfo @String $ "DATUM HASH"
+    logInfo @DatumHash $ Ledger.datumHash (Datum (PlutusTx.toBuiltinData vestDatum))
+    let supplyValue = Value.singleton (vcPolicyID vestingContractParams) (vcTokenName vestingContractParams) sAmount
+    let tx = Constraints.mustPayToTheScript vestDatum supplyValue PlutusTx.Prelude.<> Constraints.mustBeSignedBy treasury PlutusTx.Prelude.<> Constraints.mustIncludeDatum (Datum $ PlutusTx.toBuiltinData vestDatum  )
+    void $ submitTxConstraints (typedValidator vestingContractParams) tx
+    logInfo @String $ "Treasury Supplied the Supply."
 
 -------------------------------------------------------------------------------
 -- | The code below is required for the PAB to compile.
