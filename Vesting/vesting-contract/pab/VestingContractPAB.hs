@@ -118,7 +118,7 @@ PlutusTx.makeLift ''CustomDatumType
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
 
-data CustomRedeemerType = Redeem | Refund
+data CustomRedeemerType = Redeem | Refund | Vote
     deriving (Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''CustomRedeemerType
@@ -140,8 +140,9 @@ validator = Scripts.validatorScript (typedValidator vestingContractParams)
 mkValidator :: VestingContractParams -> CustomDatumType -> CustomRedeemerType -> ScriptContext -> Bool
 mkValidator vc datum redeemer context =
   case redeemer of
-      Redeem -> traceIfFalse "Token Redeem Has Failed"  $ redeem
-      Refund -> traceIfFalse "Token Removal Has Failed" $ refund
+      Redeem -> traceIfFalse "Vest Fund Redeem Has Failed"  $ redeem
+      Refund -> traceIfFalse "Vest Fund Removal Has Failed" $ refund
+      Vote   -> traceIfFalse "Vest Fund Voting Hash Failed" $ False
     where
       -------------------------------------------------------------------------
       -- | Different Types of Validators Here
@@ -308,25 +309,45 @@ redeem =  endpoint @"redeem" @() $ \() -> do
 -- | The refund endpoint.
 refund :: AsContractError e => Promise () Schema e ()
 refund =  endpoint @"refund" @() $ \() -> do
-    buyer          <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
+    treasury       <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
+    
+    -- Get all unspent output transactions at the script address.
     unspentOutputs <- utxosAt (Ledger.scriptAddress $ Scripts.validatorScript (typedValidator vestingContractParams))
-    let tx = collectFromScript unspentOutputs Refund PlutusTx.Prelude.<> Constraints.mustPayToPubKey buyer (Ada.lovelaceValueOf 1)
+    logInfo @String $ "Unspent Outputs"
+    logInfo @(Map TxOutRef ChainIndexTxOut) $ unspentOutputs
+    
+    
+    let tx = collectFromScript unspentOutputs Refund PlutusTx.Prelude.<> Constraints.mustPayToPubKey treasury (Ada.lovelaceValueOf 1)
     void $ submitTxConstraintsSpending (typedValidator vestingContractParams) unspentOutputs tx
 
--- | The supply endpoint.
+-- | The vesting contract needs to be supplied with funds to be vested.
 supply :: AsContractError e => Promise () Schema e ()
 supply =  endpoint @"supply" @SupplyParams $ \(SupplyParams {..}) -> do
     treasury <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
+    
+    -- Create the Datum
     let vestDatum = CustomDatumType { cdtVestAmount      = sAmount
                                     , cdtVestDeadline    = sDeadline
                                     , cdtVestingUserPKH  = sVester
                                     , cdtVestingGroupPKH = sGroup
                                     , cdtTreasuryPKH     = treasury
                                     }
+    let datum = Datum (PlutusTx.toBuiltinData vestDatum)
     logInfo @String $ "DATUM HASH"
-    logInfo @DatumHash $ Ledger.datumHash (Datum (PlutusTx.toBuiltinData vestDatum))
-    let supplyValue = Value.singleton (vcPolicyID vestingContractParams) (vcTokenName vestingContractParams) sAmount
-    let tx = Constraints.mustPayToTheScript vestDatum supplyValue PlutusTx.Prelude.<> Constraints.mustBeSignedBy treasury PlutusTx.Prelude.<> Constraints.mustIncludeDatum (Datum $ PlutusTx.toBuiltinData vestDatum  )
+    logInfo @DatumHash $ Ledger.datumHash datum
+    
+    -- Create the value to be supplied, use lovelace value for now.
+    -- let supplyValue = Value.singleton (vcPolicyID vestingContractParams) (vcTokenName vestingContractParams) sAmount
+    let supplyValue = Ada.lovelaceValueOf sAmount
+    
+    -- Build the Tx Constaints
+    let tx = Constraints.mustPayToTheScript vestDatum supplyValue PlutusTx.Prelude.<>
+             Constraints.mustBeSignedBy treasury                  PlutusTx.Prelude.<> 
+             Constraints.mustIncludeDatum datum
+    logInfo @String $ "TX"
+    logInfo @Bool $ Constraints.isSatisfiable tx
+    
+    -- Submit the Tx
     void $ submitTxConstraints (typedValidator vestingContractParams) tx
     logInfo @String $ "Treasury Supplied the Supply."
 
