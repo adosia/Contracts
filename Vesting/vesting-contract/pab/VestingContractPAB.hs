@@ -37,6 +37,7 @@ import Plutus.ChainIndex.Tx
 import           Data.Aeson                (ToJSON, FromJSON)
 import           GHC.Generics              (Generic)
 import Plutus.V1.Ledger.Scripts (Datum (..), DatumHash, MintingPolicyHash, Redeemer, ValidatorHash)
+import qualified Ledger.Tx                 as Tx
 
 -- module VestingContract
 --   ( vestingContractScript
@@ -81,17 +82,11 @@ import           Plutus.V1.Ledger.Time     as Time
 data VestingContractParams = VestingContractParams
   { vcMajorityParam :: !Integer
   -- ^ The number of keys that determines the majority.
-  , vcPolicyID      :: !CurrencySymbol
-  -- ^ The policy id of the vesting token.
-  , vcTokenName     :: !TokenName
-  -- ^ The token name of the vesting token.
   }
 PlutusTx.makeLift ''VestingContractParams
 
 vestingContractParams = VestingContractParams
   { vcMajorityParam = 3         -- | This may need to be inside the datum
-  , vcTokenName     = "TokenC"  -- | sample tn
-  , vcPolicyID      = "5243f6530c3507a3ed1217848475abb5ec0ec122e00c82e878ff2292"  -- | sample pid
   }
 
 -------------------------------------------------------------------------------
@@ -109,7 +104,13 @@ data CustomDatumType = CustomDatumType
   -- ^ A list public key hashes of everyone who is vesting with the contract.
   , cdtTreasuryPKH     :: !PubKeyHash
   -- ^ The public key hash of the treasury wallet.
+  , cdtPolicyID        :: !CurrencySymbol
+  -- ^ The policy id of the vesting token.
+  , cdtTokenName       :: !TokenName
+  -- ^ The token name of the vesting token.
   }
+    deriving stock (Show, Generic)
+    deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''CustomDatumType
 PlutusTx.makeLift ''CustomDatumType
 
@@ -118,7 +119,7 @@ PlutusTx.makeLift ''CustomDatumType
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
 
-data CustomRedeemerType = Redeem | Refund | Vote
+data CustomRedeemerType = Redeem | Vote
     deriving (Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''CustomRedeemerType
@@ -132,6 +133,8 @@ PlutusTx.makeLift ''CustomRedeemerType
 validator :: Plutus.Validator
 validator = Scripts.validatorScript (typedValidator vestingContractParams)
 
+scrAddress :: Ledger.Address
+scrAddress = scriptAddress validator
 
 -------------------------------------------------------------------------------
 -- | mkValidator :: Data -> Datum -> Redeemer -> ScriptContext -> Bool
@@ -141,8 +144,7 @@ mkValidator :: VestingContractParams -> CustomDatumType -> CustomRedeemerType ->
 mkValidator vc datum redeemer context =
   case redeemer of
       Redeem -> traceIfFalse "Vest Fund Redeem Has Failed"  $ redeem
-      Refund -> traceIfFalse "Vest Fund Removal Has Failed" $ refund
-      Vote   -> traceIfFalse "Vest Fund Voting Hash Failed" $ False
+      Vote   -> traceIfFalse "Vest Fund Removal Has Failed" $ vote_out
     where
       -------------------------------------------------------------------------
       -- | Different Types of Validators Here
@@ -159,10 +161,10 @@ mkValidator vc datum redeemer context =
         }
       
       -- | Put all the retrieve functions together here.
-      refund :: Bool
-      refund = do
+      vote_out :: Bool
+      vote_out = do
         { let a = True
-        ; let b = True
+        ; let b = checkAllSigners (cdtVestingGroupPKH datum)
         ; P.all (P.==(True :: Bool)) [a,b]
         }
 
@@ -188,13 +190,13 @@ mkValidator vc datum redeemer context =
 
       vestingValue ::Value
       vestingValue = if valueAmount P.> vestingAmount
-        then Value.singleton (vcPolicyID vc) (vcTokenName vc) vestingAmount
-        else Value.singleton (vcPolicyID vc) (vcTokenName vc) valueAmount
+        then Value.singleton (cdtPolicyID datum) (cdtTokenName datum) vestingAmount
+        else Value.singleton (cdtPolicyID datum) (cdtTokenName datum) valueAmount
 
       returnValue ::Value
       returnValue = if valueAmount P.> vestingAmount
-        then Value.singleton (vcPolicyID vc) (vcTokenName vc) (valueAmount P.- vestingAmount)
-        else Value.singleton (vcPolicyID vc) (vcTokenName vc) (0 :: Integer)
+        then Value.singleton (cdtPolicyID datum) (cdtTokenName datum) (valueAmount P.- vestingAmount)
+        else Value.singleton (cdtPolicyID datum) (cdtTokenName datum) (0 :: Integer)
 
       tokenValue :: Value
       tokenValue = case Contexts.findOwnInput context of
@@ -206,7 +208,7 @@ mkValidator vc datum redeemer context =
 
       -- | The integer amount of the value inside the script UTxO.
       valueAmount :: Integer
-      valueAmount = Value.valueOf tokenValue (vcPolicyID vc) (vcTokenName vc)
+      valueAmount = Value.valueOf tokenValue (cdtPolicyID datum) (cdtTokenName datum)
 
       vestingPKH :: PubKeyHash
       vestingPKH = cdtVestingUserPKH datum
@@ -238,6 +240,12 @@ mkValidator vc datum redeemer context =
         , Ledger.TimeSlot.scSlotZeroTime = Time.POSIXTime beginningOfTime
         }
       
+      checkAllSigners :: [PubKeyHash] -> Bool
+      checkAllSigners [] = True
+      checkAllSigners (x:xs)
+        | checkTxSigner x P.== False = False
+        | otherwise                  = checkAllSigners xs
+
       -- | Check if a signee has signed the pending transaction.
       checkTxSigner :: PubKeyHash -> Bool
       checkTxSigner signee = Contexts.txSignedBy info signee  -- Not Working as of 1.30.1
@@ -284,41 +292,109 @@ typedValidator vc = Scripts.mkTypedValidator @Typed
 -------------------------------------------------------------------------------
 
 data SupplyParams = SupplyParams
-    { sAmount   :: !Integer
-    , sDeadline :: !Integer
-    , sVester   :: !PubKeyHash
-    , sGroup    :: ![PubKeyHash]
+    { sTotalAmount  :: !Integer
+    , sTranche      :: !Integer
+    , sDeadline     :: !Integer
+    , sVester       :: !PubKeyHash
+    , sTreasury     :: !PubKeyHash
+    , sGroup        :: ![PubKeyHash]
+    , sPolicy       :: !CurrencySymbol
+    , sTokenName    :: !TokenName
     } deriving (Generic, ToJSON, FromJSON, ToSchema)
 
 type Schema =
     Endpoint "supply" SupplyParams
-    .\/ Endpoint "redeem" ()
-    .\/ Endpoint "refund" ()
+    .\/ Endpoint "redeem" SupplyParams
+    .\/ Endpoint "vote_out" SupplyParams
 
 contract :: AsContractError e => Contract () Schema e ()
-contract = selectList [supply, redeem, refund] >> contract
+contract = selectList [supply, redeem, vote_out] >> contract
+
+-------------------------------------------------------------------------------
 
 -- | The redeem endpoint.
 redeem :: AsContractError e => Promise () Schema e ()
-redeem =  endpoint @"redeem" @() $ \() -> do
-    buyer          <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
-    unspentOutputs <- utxosAt (Ledger.scriptAddress $ Scripts.validatorScript (typedValidator vestingContractParams))
-    let tx = collectFromScript unspentOutputs Redeem PlutusTx.Prelude.<> Constraints.mustPayToPubKey buyer (Ada.lovelaceValueOf 1)
-    void $ submitTxConstraintsSpending (typedValidator vestingContractParams) unspentOutputs tx
-
--- | The refund endpoint.
-refund :: AsContractError e => Promise () Schema e ()
-refund =  endpoint @"refund" @() $ \() -> do
-    treasury       <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
-    
-    -- Get all unspent output transactions at the script address.
-    unspentOutputs <- utxosAt (Ledger.scriptAddress $ Scripts.validatorScript (typedValidator vestingContractParams))
+redeem =  endpoint @"redeem" @SupplyParams $ \(SupplyParams {..}) -> do
+    beneficiary          <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
+    unspentOutputs <- utxosAt scrAddress
     logInfo @String $ "Unspent Outputs"
     logInfo @(Map TxOutRef ChainIndexTxOut) $ unspentOutputs
+
+    -- Create the Datum
+    let vestDatum = CustomDatumType { cdtVestAmount      = sTranche
+                                    , cdtVestDeadline    = sDeadline
+                                    , cdtVestingUserPKH  = sVester
+                                    , cdtVestingGroupPKH = sGroup
+                                    , cdtTreasuryPKH     = sTreasury
+                                    , cdtPolicyID        = sPolicy
+                                    , cdtTokenName       = sTokenName
+                                    }
+    logInfo @CustomDatumType $ vestDatum
+    let datum = Datum (PlutusTx.toBuiltinData vestDatum)
+    logInfo @String $ "DATUM HASH"
+    logInfo @DatumHash $ Ledger.datumHash datum
     
+    -- Create the value to be supplied, use lovelace value for now.
+    -- let supplyValue = Value.singleton (vcPolicyID vestingContractParams) (vcTokenName vestingContractParams) sTotalAmount
+    let supplyValue = Ada.lovelaceValueOf sTranche
+
+    -- Create a tx filter
+    let flt _ ciTxOut = P.either P.id Ledger.datumHash (Tx._ciTxOutDatum ciTxOut) P.== Ledger.datumHash datum
+    let tx = collectFromScriptFilter flt unspentOutputs Vote     PlutusTx.Prelude.<>
+             Constraints.mustPayToPubKey beneficiary supplyValue PlutusTx.Prelude.<>
+             Constraints.mustBeSignedBy beneficiary
+    logInfo @String $ "TX"
+    logInfo @(Constraints.TxConstraints CustomRedeemerType CustomDatumType) $ tx
+    logInfo @Bool $ Constraints.isSatisfiable tx
     
-    let tx = collectFromScript unspentOutputs Refund PlutusTx.Prelude.<> Constraints.mustPayToPubKey treasury (Ada.lovelaceValueOf 1)
-    void $ submitTxConstraintsSpending (typedValidator vestingContractParams) unspentOutputs tx
+    -- submit
+    void $ submitTxConstraints(typedValidator vestingContractParams) tx
+    logInfo @String $ "Tranche Has Removed The Vestment."
+-------------------------------------------------------------------------------
+
+-- | The vote_out endpoint.
+vote_out :: AsContractError e => Promise () Schema e ()
+vote_out =  endpoint @"vote_out" @SupplyParams $ \(SupplyParams {..}) -> do
+    treasury <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
+    -- Get all unspent output transactions at the script address.
+    unspentOutputs <- utxosAt scrAddress
+    logInfo @String $ "Unspent Outputs"
+    logInfo @(Map TxOutRef ChainIndexTxOut) $ unspentOutputs
+
+    -- Create the Datum
+    let vestDatum = CustomDatumType { cdtVestAmount      = sTranche
+                                    , cdtVestDeadline    = sDeadline
+                                    , cdtVestingUserPKH  = sVester
+                                    , cdtVestingGroupPKH = sGroup
+                                    , cdtTreasuryPKH     = sTreasury
+                                    , cdtPolicyID        = sPolicy
+                                    , cdtTokenName       = sTokenName
+                                    }
+    logInfo @CustomDatumType $ vestDatum
+    let datum = Datum (PlutusTx.toBuiltinData vestDatum)
+    logInfo @String $ "DATUM HASH"
+    logInfo @DatumHash $ Ledger.datumHash datum
+
+    -- Remaining value
+    let supplyValue = P.foldMap (Tx._ciTxOutValue P.. P.snd) (Map.toList unspentOutputs)
+    logInfo @String $ "RETURN VALUE"
+    logInfo @(Value) $ supplyValue
+
+    
+    -- Create a tx filter
+    let flt _ ciTxOut = P.either P.id Ledger.datumHash (Tx._ciTxOutDatum ciTxOut) P.== Ledger.datumHash datum
+    let tx = collectFromScriptFilter flt unspentOutputs Vote        PlutusTx.Prelude.<>
+                   Constraints.mustPayToPubKey treasury supplyValue PlutusTx.Prelude.<>
+                   P.foldMap Constraints.mustBeSignedBy sGroup
+    logInfo @String $ "TX"
+    logInfo @(Constraints.TxConstraints CustomRedeemerType CustomDatumType) $ tx
+    logInfo @Bool $ Constraints.isSatisfiable tx
+    
+    -- submit
+    void $ submitTxConstraints(typedValidator vestingContractParams) tx
+    logInfo @String $ "Treasury Has Removed The Vestment."
+
+-------------------------------------------------------------------------------
 
 -- | The vesting contract needs to be supplied with funds to be vested.
 supply :: AsContractError e => Promise () Schema e ()
@@ -326,19 +402,22 @@ supply =  endpoint @"supply" @SupplyParams $ \(SupplyParams {..}) -> do
     treasury <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
     
     -- Create the Datum
-    let vestDatum = CustomDatumType { cdtVestAmount      = sAmount
+    let vestDatum = CustomDatumType { cdtVestAmount      = sTranche
                                     , cdtVestDeadline    = sDeadline
                                     , cdtVestingUserPKH  = sVester
                                     , cdtVestingGroupPKH = sGroup
                                     , cdtTreasuryPKH     = treasury
+                                    , cdtPolicyID        = sPolicy
+                                    , cdtTokenName       = sTokenName
                                     }
+    logInfo @CustomDatumType $ vestDatum
     let datum = Datum (PlutusTx.toBuiltinData vestDatum)
     logInfo @String $ "DATUM HASH"
     logInfo @DatumHash $ Ledger.datumHash datum
     
     -- Create the value to be supplied, use lovelace value for now.
-    -- let supplyValue = Value.singleton (vcPolicyID vestingContractParams) (vcTokenName vestingContractParams) sAmount
-    let supplyValue = Ada.lovelaceValueOf sAmount
+    -- let supplyValue = Value.singleton (vcPolicyID vestingContractParams) (vcTokenName vestingContractParams) sTotalAmount
+    let supplyValue = Ada.lovelaceValueOf sTotalAmount
     
     -- Build the Tx Constaints
     let tx = Constraints.mustPayToTheScript vestDatum supplyValue PlutusTx.Prelude.<>
