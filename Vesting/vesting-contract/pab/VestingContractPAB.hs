@@ -96,7 +96,7 @@ vestingContractParams = VestingContractParams
 data CustomDatumType = CustomDatumType 
   { cdtVestAmount      :: !Integer
   -- ^ The amount of lovelace the user is allowed to extract.
-  , cdtVestDeadline    :: !Integer
+  , cdtVestDeadline    :: !POSIXTime
   -- ^ Fund must be retrieved after this deadline.
   , cdtVestingUserPKH  :: !PubKeyHash
   -- ^ The public key hash of the receiver.
@@ -156,7 +156,7 @@ mkValidator vc datum redeemer context =
         { let a = checkTxSigner vestingPKH
         ; let b = checkTxOutForValueAtAddress currentTxOutputs vestingAddr vestingValue
         ; let c = checkTxOutForValue scriptTxOutputs returnValue
-        ; let d = (Ledger.TimeSlot.slotToBeginPOSIXTime def (Slot $ cdtVestDeadline datum)) `before` Contexts.txInfoValidRange info
+        ; let d = True --(Ledger.TimeSlot.slotToBeginPOSIXTime def (Slot $ cdtVestDeadline datum)) `before` Contexts.txInfoValidRange info
         ; P.all (P.==(True :: Bool)) [a,b,c,d]
         }
       
@@ -294,7 +294,7 @@ typedValidator vc = Scripts.mkTypedValidator @Typed
 data SupplyParams = SupplyParams
     { sTotalAmount  :: !Integer
     , sTranche      :: !Integer
-    , sDeadline     :: !Integer
+    , sDeadline     :: !POSIXTime
     , sVester       :: !PubKeyHash
     , sTreasury     :: !PubKeyHash
     , sGroup        :: ![PubKeyHash]
@@ -315,7 +315,8 @@ contract = selectList [supply, redeem, vote_out] >> contract
 -- | The redeem endpoint.
 redeem :: AsContractError e => Promise () Schema e ()
 redeem =  endpoint @"redeem" @SupplyParams $ \(SupplyParams {..}) -> do
-    beneficiary          <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
+    beneficiary    <- pubKeyHash P.<$> Plutus.Contract.ownPubKey
+    time           <- currentTime
     unspentOutputs <- utxosAt scrAddress
     logInfo @String $ "Unspent Outputs"
     logInfo @(Map TxOutRef ChainIndexTxOut) $ unspentOutputs
@@ -336,20 +337,37 @@ redeem =  endpoint @"redeem" @SupplyParams $ \(SupplyParams {..}) -> do
     
     -- Create the value to be supplied, use lovelace value for now.
     -- let supplyValue = Value.singleton (vcPolicyID vestingContractParams) (vcTokenName vestingContractParams) sTotalAmount
-    let supplyValue = Ada.lovelaceValueOf sTranche
+    let trancheValue = Ada.lovelaceValueOf sTranche
+    let supplyValue  = P.foldMap (Tx._ciTxOutValue P.. P.snd) (Map.toList unspentOutputs)
+    let returnValue  = supplyValue P.- trancheValue
+
+
+    let newDatum = CustomDatumType  { cdtVestAmount      = sTranche
+                                    , cdtVestDeadline    = time P.+ sDeadline
+                                    , cdtVestingUserPKH  = sVester
+                                    , cdtVestingGroupPKH = sGroup
+                                    , cdtTreasuryPKH     = sTreasury
+                                    , cdtPolicyID        = sPolicy
+                                    , cdtTokenName       = sTokenName
+                                    }
+    logInfo @CustomDatumType $ newDatum
+    let nextDatum = Datum (PlutusTx.toBuiltinData newDatum)
 
     -- Create a tx filter
     let flt _ ciTxOut = P.either P.id Ledger.datumHash (Tx._ciTxOutDatum ciTxOut) P.== Ledger.datumHash datum
-    let tx = collectFromScriptFilter flt unspentOutputs Vote     PlutusTx.Prelude.<>
-             Constraints.mustPayToPubKey beneficiary supplyValue PlutusTx.Prelude.<>
-             Constraints.mustBeSignedBy beneficiary
+    let tx = collectFromScriptFilter flt unspentOutputs Vote      PlutusTx.Prelude.<>
+             Constraints.mustPayToPubKey beneficiary trancheValue PlutusTx.Prelude.<>
+             Constraints.mustBeSignedBy beneficiary               PlutusTx.Prelude.<>
+             Constraints.mustPayToTheScript newDatum returnValue PlutusTx.Prelude.<>
+             Constraints.mustIncludeDatum nextDatum
     logInfo @String $ "TX"
     logInfo @(Constraints.TxConstraints CustomRedeemerType CustomDatumType) $ tx
     logInfo @Bool $ Constraints.isSatisfiable tx
     
-    -- submit
-    void $ submitTxConstraints(typedValidator vestingContractParams) tx
-    logInfo @String $ "Tranche Has Removed The Vestment."
+    if time P.>= sDeadline
+    then void $ submitTxConstraints(typedValidator vestingContractParams) tx
+    else logInfo @String $ "Error: Time Before Deadline"
+    
 -------------------------------------------------------------------------------
 
 -- | The vote_out endpoint.
