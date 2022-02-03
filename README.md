@@ -2,6 +2,8 @@
 
 A Collection of Smart Contracts for Adosia
 
+- [Token Vesting](./Vesting)
+
 # Basic Start Up
 
 Have a cardano-node inside the folder
