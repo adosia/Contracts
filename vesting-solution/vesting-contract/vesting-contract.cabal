@@ -48,10 +48,13 @@ library
 
   build-depends:        bytestring
                       , cardano-api
+                      , playground-common
+                      , plutus-contract
                       , plutus-ledger
                       , plutus-ledger-api
                       , plutus-tx
                       , plutus-tx-plugin
+                      , plutus-use-cases
                       , serialise
                       , text
                       , containers

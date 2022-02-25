@@ -1,47 +1,61 @@
+{-# LANGUAGE BangPatterns          #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveAnyClass        #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DerivingStrategies    #-}
 {-# LANGUAGE DerivingVia           #-}
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE ImportQualifiedPost   #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE NoImplicitPrelude     #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
+-- Options
+{-# OPTIONS_GHC -fno-strictness               #-}
+{-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
+{-# OPTIONS_GHC -fno-omit-interface-pragmas   #-}
+{-# OPTIONS_GHC -fobject-code                 #-}
+{-# OPTIONS_GHC -fno-specialise               #-}
+{-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
 
 module VestingContract
   ( vestingContractScript
   , vestingContractScriptShortBs
+  , Schema
+  , contract
   ) where
 
-import           Codec.Serialise
+import           Cardano.Api.Shelley       (PlutusScript (..), PlutusScriptV1)
+import           Control.Monad             (void)
+
+import           Codec.Serialise           ( serialise )
 
 import qualified Data.ByteString.Lazy      as LBS
 import qualified Data.ByteString.Short     as SBS
+import qualified Data.Maybe
 
-import           Prelude                   hiding (($))
+import           Playground.Contract
+import           Plutus.Contract
+import           Plutus.Contract.Trace as X
 
-import           Ledger                    hiding (singleton)
-import qualified Ledger.Interval
-import qualified Ledger.TimeSlot
+import Ledger
 import qualified Ledger.Typed.Scripts      as Scripts
 
-import           Cardano.Api.Shelley       (PlutusScript (..), PlutusScriptV1)
-
 import qualified PlutusTx
-import           PlutusTx.Prelude          as P hiding (Semigroup (..), unless)
+import           PlutusTx.Prelude      hiding (pure, (<$>))
+import qualified Prelude               as Haskell
 
-import qualified Plutus.V1.Ledger.Ada      as Ada
-import qualified Plutus.V1.Ledger.Contexts as Contexts
+
 import qualified Plutus.V1.Ledger.Scripts  as Plutus
-import qualified Plutus.V1.Ledger.Value    as Value
-import           Plutus.V1.Ledger.Time     as Time
+import qualified Plutus.V1.Ledger.Ada      as Ada
 
 {- |
   Author   : The Ancient Kraken
@@ -89,9 +103,10 @@ PlutusTx.makeLift ''CustomDatumType
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
 
-data CustomRedeemerType = Redeem | Refund
-    deriving (Generic)
-    deriving anyclass (FromJSON, ToJSON, ToSchema)
+data CustomRedeemerType = CustomRedeemerType
+  { crtAction :: !Integer }
+    -- deriving stock (Show, Generic)
+    -- deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''CustomRedeemerType
 PlutusTx.makeLift ''CustomRedeemerType
 
@@ -125,8 +140,8 @@ mkValidator vc datum redeemer context
       
       checkRedeemer :: Bool
       checkRedeemer
-        | action P.== 0 = retrieve  -- | Retrieve vesting amount
-        | action P.== 1 = remove    -- | Remove user from vesting contract.
+        | action == 0 = True -- retrieve  -- | Retrieve vesting amount
+        | action == 1 = True -- remove    -- | Remove user from vesting contract.
         | otherwise     = False
       
       action :: Integer
@@ -137,112 +152,112 @@ mkValidator vc datum redeemer context
       -------------------------------------------------------------------------
       
       -- | Put all the retrieve functions together here.
-      retrieve :: Bool
-      retrieve = do
-        { let a = checkTxSigner vestingPKH
-        ; let b = checkTxOutForValueAtAddress currentTxOutputs vestingAddr vestingValue
-        ; let c = checkTxOutForValue scriptTxOutputs returnValue
-        ; let d = (Ledger.TimeSlot.slotToBeginPOSIXTime def (Slot $ cdtVestDeadline datum)) `before` Contexts.txInfoValidRange info
-        ; P.all (P.==(True :: Bool)) [a,b,c,d]
-        }
+      -- retrieve :: Bool
+      -- retrieve = do
+      --   { let a = checkTxSigner vestingPKH
+      --   ; let b = checkTxOutForValueAtAddress currentTxOutputs vestingAddr vestingValue
+      --   ; let c = checkTxOutForValue scriptTxOutputs returnValue
+      --   -- ; let d = (Ledger.TimeSlot.slotToBeginPOSIXTime def (Slot $ cdtVestDeadline datum)) `before` Contexts.txInfoValidRange info
+      --   ; all (==(True :: Bool)) [a,b,c,d]
+      --   }
       
-      -- | Put all the retrieve functions together here.
-      remove :: Bool
-      remove = do
-        { let a = True
-        ; let b = True
-        ; P.all (P.==(True :: Bool)) [a,b]
-        }
+      -- -- | Put all the retrieve functions together here.
+      -- remove :: Bool
+      -- remove = do
+      --   { let a = True
+      --   ; let b = True
+      --   ; all (==(True :: Bool)) [a,b]
+      --   }
 
       -------------------------------------------------------------------------
       -- | Script Info and TxOutputs
       -------------------------------------------------------------------------
       
       -- The script info.
-      info :: TxInfo
-      info = scriptContextTxInfo context
+      -- info :: TxInfo
+      -- info = scriptContextTxInfo context
 
-      -- All the current outputs.
-      currentTxOutputs :: [TxOut]
-      currentTxOutputs = txInfoOutputs info
+      -- -- All the current outputs.
+      -- currentTxOutputs :: [TxOut]
+      -- currentTxOutputs = txInfoOutputs info
 
-      -- All the outputs going back to the script.
-      scriptTxOutputs  :: [TxOut]
-      scriptTxOutputs  = Contexts.getContinuingOutputs context
+      -- -- All the outputs going back to the script.
+      -- scriptTxOutputs  :: [TxOut]
+      -- scriptTxOutputs  = Contexts.getContinuingOutputs context
 
       -------------------------------------------------------------------------
       -- | Different Types of Vesting Data Here
       -------------------------------------------------------------------------
 
-      vestingValue ::Value
-      vestingValue = if valueAmount P.> vestingAmount
-        then Value.singleton (vcPolicyID vc) (vcTokenName vc) vestingAmount
-        else Value.singleton (vcPolicyID vc) (vcTokenName vc) valueAmount
+      -- vestingValue ::Value
+      -- vestingValue = if valueAmount > vestingAmount
+      --   then Value.singleton (vcPolicyID vc) (vcTokenName vc) vestingAmount
+      --   else Value.singleton (vcPolicyID vc) (vcTokenName vc) valueAmount
 
-      returnValue ::Value
-      returnValue = if valueAmount P.> vestingAmount
-        then Value.singleton (vcPolicyID vc) (vcTokenName vc) (valueAmount P.- vestingAmount)
-        else Value.singleton (vcPolicyID vc) (vcTokenName vc) (0 :: Integer)
+      -- returnValue ::Value
+      -- returnValue = if valueAmount > vestingAmount
+      --   then Value.singleton (vcPolicyID vc) (vcTokenName vc) (valueAmount - vestingAmount)
+      --   else Value.singleton (vcPolicyID vc) (vcTokenName vc) (0 :: Integer)
 
-      tokenValue :: Value
-      tokenValue = case Contexts.findOwnInput context of
-        Nothing     -> traceError "No Input to Validate."
-        Just input  -> txOutValue $ txInInfoResolved $ input
+      -- tokenValue :: Value
+      -- tokenValue = case Contexts.findOwnInput context of
+      --   Nothing     -> traceError "No Input to Validate."
+      --   Just input  -> txOutValue $ txInInfoResolved $ input
 
-      vestingAmount :: Integer
-      vestingAmount = cdtVestAmount datum
+      -- vestingAmount :: Integer
+      -- vestingAmount = cdtVestAmount datum
 
       -- | The integer amount of the value inside the script UTxO.
-      valueAmount :: Integer
-      valueAmount = Value.valueOf tokenValue (vcPolicyID vc) (vcTokenName vc)
+      -- valueAmount :: Integer
+      -- valueAmount = Value.valueOf tokenValue (vcPolicyID vc) (vcTokenName vc)
 
-      vestingPKH :: PubKeyHash
-      vestingPKH = cdtVestingUserPKH datum
+      -- vestingPKH :: PubKeyHash
+      -- vestingPKH = cdtVestingUserPKH datum
 
-      vestingAddr :: Address
-      vestingAddr = pubKeyHashAddress vestingPKH
+      -- vestingAddr :: Address
+      -- vestingAddr = pubKeyHashAddress vestingPKH
 
-      vestingGroup :: [PubKeyHash]
-      vestingGroup = cdtVestingGroupPKH datum
+      -- vestingGroup :: [PubKeyHash]
+      -- vestingGroup = cdtVestingGroupPKH datum
 
-      treasuryPKH :: PubKeyHash
-      treasuryPKH = cdtTreasuryPKH datum
+      -- treasuryPKH :: PubKeyHash
+      -- treasuryPKH = cdtTreasuryPKH datum
 
-      treasuryAddr :: Address
-      treasuryAddr = pubKeyHashAddress treasuryPKH
+      -- treasuryAddr :: Address
+      -- treasuryAddr = pubKeyHashAddress treasuryPKH
 
       -------------------------------------------------------------------------
       -- | Helper Functions Here
       -------------------------------------------------------------------------
 
       -- | This may be incorrect. Check plutus repo...
-      beginningOfTime :: Integer
-      beginningOfTime = 1596059091000
+      -- beginningOfTime :: Integer
+      -- beginningOfTime = 1596059091000
       
       -- | This is the default time. Check Plutus repo...
-      def :: Ledger.TimeSlot.SlotConfig
-      def = Ledger.TimeSlot.SlotConfig 
-        { Ledger.TimeSlot.scSlotLength = 1000
-        , Ledger.TimeSlot.scSlotZeroTime = Time.POSIXTime beginningOfTime
-        }
+      -- def :: Ledger.TimeSlot.SlotConfig
+      -- def = Ledger.TimeSlot.SlotConfig 
+      --   { Ledger.TimeSlot.scSlotLength = 1000
+      --   , Ledger.TimeSlot.scSlotZeroTime = Time.POSIXTime beginningOfTime
+      --   }
       
       -- | Check if a signee has signed the pending transaction.
-      checkTxSigner :: PubKeyHash -> Bool
-      checkTxSigner signee = Contexts.txSignedBy info signee  -- Not Working as of 1.30.1
+      -- checkTxSigner :: PubKeyHash -> Bool
+      -- checkTxSigner signee = txSignedBy info signee  -- Not Working as of 1.30.1
 
-      -- | Search each TxOut for the correct address and value.
-      checkTxOutForValueAtAddress :: [TxOut] -> Address -> Value -> Bool
-      checkTxOutForValueAtAddress [] _addr _val = False
-      checkTxOutForValueAtAddress (x:xs) addr val
-        | ((txOutAddress x) P.== addr) P.&& ((txOutValue x) P.== val) = True
-        | otherwise                                                   = checkTxOutForValueAtAddress xs addr val
+      -- -- | Search each TxOut for the correct address and value.
+      -- checkTxOutForValueAtAddress :: [TxOut] -> Address -> Value -> Bool
+      -- checkTxOutForValueAtAddress [] _addr _val = False
+      -- checkTxOutForValueAtAddress (x:xs) addr val
+      --   | ((txOutAddress x) == addr) && ((txOutValue x) == val) = True
+      --   | otherwise                                                   = checkTxOutForValueAtAddress xs addr val
       
-      -- | Search each TxOut for the correct value.
-      checkTxOutForValue :: [TxOut] -> Value -> Bool
-      checkTxOutForValue [] _val = False
-      checkTxOutForValue (x:xs) val
-        | (txOutValue x) P.== val = True
-        | otherwise               = checkTxOutForValue xs val
+      -- -- | Search each TxOut for the correct value.
+      -- checkTxOutForValue :: [TxOut] -> Value -> Bool
+      -- checkTxOutForValue [] _val = False
+      -- checkTxOutForValue (x:xs) val
+      --   | (txOutValue x) == val = True
+      --   | otherwise               = checkTxOutForValue xs val
 
       
 -------------------------------------------------------------------------------
@@ -271,11 +286,21 @@ typedValidator vc = Scripts.mkTypedValidator @Typed
 -- | The code below is required for the plutus script compile.
 -------------------------------------------------------------------------------
 
--- script :: Plutus.Script
--- script = Plutus.unValidatorScript validator
+script :: Plutus.Script
+script = Plutus.unValidatorScript validator
 
--- vestingContractScriptShortBs :: SBS.ShortByteString
--- vestingContractScriptShortBs = SBS.toShort . LBS.toStrict $ serialise script
+vestingContractScriptShortBs :: SBS.ShortByteString
+vestingContractScriptShortBs = SBS.toShort . LBS.toStrict $ serialise script
 
--- vestingContractScript :: PlutusScript PlutusScriptV1
--- vestingContractScript = PlutusScriptSerialised vestingContractScriptShortBs
+vestingContractScript :: PlutusScript PlutusScriptV1
+vestingContractScript = PlutusScriptSerialised vestingContractScriptShortBs
+
+
+-------------------------------------------------------------------------------
+-- | Off Chain
+-------------------------------------------------------------------------------
+type Schema =
+  Endpoint "" ()
+
+contract :: AsContractError e => Contract () Schema e ()
+contract = selectList [] >> contract
