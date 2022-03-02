@@ -31,38 +31,38 @@ module VestingContract
   , vestingContractScriptShortBs
   , Schema
   , contract
+  , CustomDatumType
+  , lockInterval
+  , rewardFunction
   ) where
 
 import           Cardano.Api.Shelley       (PlutusScript (..), PlutusScriptV1)
-import           Control.Monad             (void)
 
 import           Codec.Serialise           ( serialise )
 
 import qualified Data.ByteString.Lazy      as LBS
 import qualified Data.ByteString.Short     as SBS
-import qualified Data.Maybe
 
 import           Playground.Contract
 import           Plutus.Contract
-import           Plutus.Contract.Trace as X
 
-import Ledger
+import           Ledger
 import qualified Ledger.Typed.Scripts      as Scripts
 
 import qualified PlutusTx
-import           PlutusTx.Prelude      hiding (pure, (<$>))
-import qualified Prelude               as Haskell
-
+import           PlutusTx.Prelude
 
 import qualified Plutus.V1.Ledger.Scripts  as Plutus
-import qualified Plutus.V1.Ledger.Ada      as Ada
+import qualified Plutus.V1.Ledger.Interval as Interval
+import qualified Plutus.V1.Ledger.Time     as Time
+
 
 {- |
   Author   : The Ancient Kraken
   Copyright: 2021
   Version  : Rev 0
 
-  This is a vesting contract that attempts to solve the permanent banning problem.
+  This is a vesting contract.
 -}
 
 -------------------------------------------------------------------------------
@@ -75,6 +75,8 @@ data VestingContractParams = VestingContractParams
   -- ^ The policy id of the vesting token.
   , vcTokenName     :: !TokenName
   -- ^ The token name of the vesting token.
+  , vcMasterKey     :: !PubKeyHash
+  -- ^ Experimental master key by pass
   }
 PlutusTx.makeLift ''VestingContractParams
 
@@ -83,28 +85,39 @@ PlutusTx.makeLift ''VestingContractParams
 -- | Create the datum parameters data object.
 -------------------------------------------------------------------------------
 
-data CustomDatumType = CustomDatumType 
-  { cdtVestAmount      :: !Value
-  -- ^ The amount of lovelace the user is allowed to extract.
-  , cdtVestDeadline    :: !POSIXTime
-  -- ^ Fund must be retrieved after this deadline.
+data CustomDatumType = CustomDatumType
+  { cdtVestingStage    :: !Integer
+  -- ^ The stage determines the deadline and reward.
   , cdtVestingUserPKH  :: !PubKeyHash
   -- ^ The public key hash of the receiver.
   , cdtVestingGroupPKH :: ![PubKeyHash]
   -- ^ A list public key hashes of everyone who is vesting with the contract.
   , cdtTreasuryPKH     :: !PubKeyHash
   -- ^ The public key hash of the treasury wallet.
+  , cdtDeadlineParams  :: ![Integer]
+  -- ^ The deadline function parameters [deltaT, t0]
+  , cdtRewardParams    :: ![Integer]
+  -- ^ The reward function parameters [deltaV, v0]
   }
 PlutusTx.unstableMakeIsData ''CustomDatumType
 PlutusTx.makeLift ''CustomDatumType
+
+instance Eq CustomDatumType where
+  {-# INLINABLE (==) #-}
+  a == b = ( cdtVestingStage    a == cdtVestingStage b + 1) &&
+           ( cdtVestingUserPKH  a == cdtVestingUserPKH   b) &&
+           ( cdtVestingGroupPKH a == cdtVestingGroupPKH  b) &&
+           ( cdtTreasuryPKH     a == cdtTreasuryPKH      b) &&
+           ( cdtDeadlineParams  a == cdtDeadlineParams   b) &&
+           ( cdtRewardParams    a == cdtRewardParams     b)
 
 
 -------------------------------------------------------------------------------
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
 
-data CustomRedeemerType = CustomRedeemerType
-  { crtAction :: !Integer }
+newtype CustomRedeemerType = CustomRedeemerType
+  { crtAction :: Integer }
     -- deriving stock (Show, Generic)
     -- deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''CustomRedeemerType
@@ -117,149 +130,87 @@ PlutusTx.makeLift ''CustomRedeemerType
 
 validator :: Plutus.Validator
 validator = Scripts.validatorScript (typedValidator vc)
-  where 
+  where
     vc = VestingContractParams
-      { vcMajorityParam = 3 -- | This may need to be inside the datum
-      , vcPolicyID      = "5243f6530c3507a3ed1217848475abb5ec0ec122e00c82e878ff2292"  -- | sample pid
-      , vcTokenName     = "TokenC"  -- | sample tn
+      { vcMajorityParam = 3
+      , vcPolicyID      = "5243f6530c3507a3ed1217848475abb5ec0ec122e00c82e878ff2292"
+      , vcTokenName     = "TokenC"
+      , vcMasterKey     = ""
       }
 
+-------------------------------------------------------------------------------
+-- | Deadline and Reward Functions
+-------------------------------------------------------------------------------
+
+-- Pick the locking interval
+lockInterval :: CustomDatumType -> Interval POSIXTime
+lockInterval datum' = Interval.interval (integerToPOSIX startingTime) (integerToPOSIX endingTime)
+  where
+    refEpoch :: Integer
+    -- refEpoch = 312 -- mainnet
+    refEpoch = 178 -- testnet
+
+    timeTilRefEpoch :: Integer
+    -- timeTilRefEpoch = 1640987100000  -- mainnet
+    timeTilRefEpoch = 1640895900000  -- testnet
+
+    lengthOfDay :: Integer
+    lengthOfDay = 1000*60*60*24
+
+    lengthOfEpoch :: Integer
+    lengthOfEpoch = 5 * lengthOfDay
+
+    -- pick some epoch to start
+    startEpoch :: Integer
+    startEpoch = head $ tail $ cdtDeadlineParams datum'
+
+    -- pick some number of days for the vesting period
+    lockedPeriod :: Integer
+    lockedPeriod = head $ cdtDeadlineParams datum'
+
+    startingTime :: Integer
+    startingTime = timeTilRefEpoch + (startEpoch - refEpoch)*lengthOfEpoch
+
+    endingTime :: Integer
+    endingTime = startingTime + lockedPeriod*lengthOfDay
+
+    -- Number of milliseconds from unix time start
+    integerToPOSIX :: Integer -> POSIXTime
+    integerToPOSIX x = Time.fromMilliSeconds $ Time.DiffMilliSeconds x
+
+-- Assume Linear reward
+rewardFunction :: CustomDatumType -> Integer -> Integer
+rewardFunction datum' t = v0 - t * deltaV
+  where
+    -- starting amount
+    v0 :: Integer
+    v0 = head $ tail $ cdtRewardParams datum'
+
+    -- amount reduced every period
+    deltaV :: Integer
+    deltaV = head $ cdtRewardParams datum'
 
 -------------------------------------------------------------------------------
 -- | mkValidator :: Data -> Datum -> Redeemer -> ScriptContext -> Bool
 -------------------------------------------------------------------------------
 {-# INLINABLE mkValidator #-}
 mkValidator :: VestingContractParams -> CustomDatumType -> CustomRedeemerType -> ScriptContext -> Bool
-mkValidator vc datum redeemer context 
+mkValidator _ _ redeemer _
   | checkRedeemer = True
   | otherwise     = False
     where
       -------------------------------------------------------------------------
       -- | Use the redeemer to switch validators.
       -------------------------------------------------------------------------
-      
       checkRedeemer :: Bool
       checkRedeemer
-        | action == 0 = True -- retrieve  -- | Retrieve vesting amount
-        | action == 1 = True -- remove    -- | Remove user from vesting contract.
-        | otherwise     = False
-      
+        | action == 0 = True
+        | otherwise   = False
+
       action :: Integer
-      action = (crtAction redeemer)
+      action = crtAction redeemer
 
-      -------------------------------------------------------------------------
-      -- | Different Types of Validators Here
-      -------------------------------------------------------------------------
-      
-      -- | Put all the retrieve functions together here.
-      -- retrieve :: Bool
-      -- retrieve = do
-      --   { let a = checkTxSigner vestingPKH
-      --   ; let b = checkTxOutForValueAtAddress currentTxOutputs vestingAddr vestingValue
-      --   ; let c = checkTxOutForValue scriptTxOutputs returnValue
-      --   -- ; let d = (Ledger.TimeSlot.slotToBeginPOSIXTime def (Slot $ cdtVestDeadline datum)) `before` Contexts.txInfoValidRange info
-      --   ; all (==(True :: Bool)) [a,b,c,d]
-      --   }
-      
-      -- -- | Put all the retrieve functions together here.
-      -- remove :: Bool
-      -- remove = do
-      --   { let a = True
-      --   ; let b = True
-      --   ; all (==(True :: Bool)) [a,b]
-      --   }
 
-      -------------------------------------------------------------------------
-      -- | Script Info and TxOutputs
-      -------------------------------------------------------------------------
-      
-      -- The script info.
-      -- info :: TxInfo
-      -- info = scriptContextTxInfo context
-
-      -- -- All the current outputs.
-      -- currentTxOutputs :: [TxOut]
-      -- currentTxOutputs = txInfoOutputs info
-
-      -- -- All the outputs going back to the script.
-      -- scriptTxOutputs  :: [TxOut]
-      -- scriptTxOutputs  = Contexts.getContinuingOutputs context
-
-      -------------------------------------------------------------------------
-      -- | Different Types of Vesting Data Here
-      -------------------------------------------------------------------------
-
-      -- vestingValue ::Value
-      -- vestingValue = if valueAmount > vestingAmount
-      --   then Value.singleton (vcPolicyID vc) (vcTokenName vc) vestingAmount
-      --   else Value.singleton (vcPolicyID vc) (vcTokenName vc) valueAmount
-
-      -- returnValue ::Value
-      -- returnValue = if valueAmount > vestingAmount
-      --   then Value.singleton (vcPolicyID vc) (vcTokenName vc) (valueAmount - vestingAmount)
-      --   else Value.singleton (vcPolicyID vc) (vcTokenName vc) (0 :: Integer)
-
-      -- tokenValue :: Value
-      -- tokenValue = case Contexts.findOwnInput context of
-      --   Nothing     -> traceError "No Input to Validate."
-      --   Just input  -> txOutValue $ txInInfoResolved $ input
-
-      -- vestingAmount :: Integer
-      -- vestingAmount = cdtVestAmount datum
-
-      -- | The integer amount of the value inside the script UTxO.
-      -- valueAmount :: Integer
-      -- valueAmount = Value.valueOf tokenValue (vcPolicyID vc) (vcTokenName vc)
-
-      -- vestingPKH :: PubKeyHash
-      -- vestingPKH = cdtVestingUserPKH datum
-
-      -- vestingAddr :: Address
-      -- vestingAddr = pubKeyHashAddress vestingPKH
-
-      -- vestingGroup :: [PubKeyHash]
-      -- vestingGroup = cdtVestingGroupPKH datum
-
-      -- treasuryPKH :: PubKeyHash
-      -- treasuryPKH = cdtTreasuryPKH datum
-
-      -- treasuryAddr :: Address
-      -- treasuryAddr = pubKeyHashAddress treasuryPKH
-
-      -------------------------------------------------------------------------
-      -- | Helper Functions Here
-      -------------------------------------------------------------------------
-
-      -- | This may be incorrect. Check plutus repo...
-      -- beginningOfTime :: Integer
-      -- beginningOfTime = 1596059091000
-      
-      -- | This is the default time. Check Plutus repo...
-      -- def :: Ledger.TimeSlot.SlotConfig
-      -- def = Ledger.TimeSlot.SlotConfig 
-      --   { Ledger.TimeSlot.scSlotLength = 1000
-      --   , Ledger.TimeSlot.scSlotZeroTime = Time.POSIXTime beginningOfTime
-      --   }
-      
-      -- | Check if a signee has signed the pending transaction.
-      -- checkTxSigner :: PubKeyHash -> Bool
-      -- checkTxSigner signee = txSignedBy info signee  -- Not Working as of 1.30.1
-
-      -- -- | Search each TxOut for the correct address and value.
-      -- checkTxOutForValueAtAddress :: [TxOut] -> Address -> Value -> Bool
-      -- checkTxOutForValueAtAddress [] _addr _val = False
-      -- checkTxOutForValueAtAddress (x:xs) addr val
-      --   | ((txOutAddress x) == addr) && ((txOutValue x) == val) = True
-      --   | otherwise                                                   = checkTxOutForValueAtAddress xs addr val
-      
-      -- -- | Search each TxOut for the correct value.
-      -- checkTxOutForValue :: [TxOut] -> Value -> Bool
-      -- checkTxOutForValue [] _val = False
-      -- checkTxOutForValue (x:xs) val
-      --   | (txOutValue x) == val = True
-      --   | otherwise               = checkTxOutForValue xs val
-
-      
 -------------------------------------------------------------------------------
 -- | This determines the data type for Datum and Redeemer.
 -------------------------------------------------------------------------------
