@@ -58,6 +58,7 @@ import qualified Plutus.V1.Ledger.Scripts  as Plutus
 import qualified Plutus.V1.Ledger.Interval as Interval
 import qualified Plutus.V1.Ledger.Time     as Time
 import qualified Plutus.V1.Ledger.Value    as Value
+import qualified Plutus.V1.Ledger.Ada      as Ada
 
 
 {- |
@@ -78,6 +79,8 @@ data VestingContractParams = VestingContractParams
   -- ^ The policy id of the vesting token.
   , vcTokenName     :: !TokenName
   -- ^ The token name of the vesting token.
+  , vcProviderPKH   :: !PubKeyHash
+  -- ^ The vesting as a service provider pkh
   }
 PlutusTx.makeLift ''VestingContractParams
 
@@ -109,9 +112,9 @@ instance Eq CustomDatumType where
            ( cdtVestingUserPKH  a == cdtVestingUserPKH   b) &&
            ( cdtVestingGroupPKH a == cdtVestingGroupPKH  b) &&
            ( cdtTreasuryPKH     a == cdtTreasuryPKH      b) &&
+           ( cdtRewardParams    a == cdtRewardParams     b) &&
            ( head (cdtDeadlineParams a) == head (cdtDeadlineParams b)) &&
-           ( head (tail (cdtDeadlineParams a)) + head (cdtDeadlineParams a) == head (tail (cdtDeadlineParams b))) &&
-           ( cdtRewardParams    a == cdtRewardParams     b)
+           ( head (tail (cdtDeadlineParams a)) + head (cdtDeadlineParams a) == head (tail (cdtDeadlineParams b)))
 
 
 -------------------------------------------------------------------------------
@@ -120,8 +123,8 @@ instance Eq CustomDatumType where
 
 newtype CustomRedeemerType = CustomRedeemerType
   { crtAction :: Integer }
-    -- deriving stock (Show, Generic)
-    -- deriving anyclass (FromJSON, ToJSON, ToSchema)
+    deriving stock (Show, Generic)
+    deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''CustomRedeemerType
 PlutusTx.makeLift ''CustomRedeemerType
 
@@ -137,6 +140,7 @@ validator = Scripts.validatorScript (typedValidator vc)
       { vcMajorityParam = 3
       , vcPolicyID      = "5243f6530c3507a3ed1217848475abb5ec0ec122e00c82e878ff2292"
       , vcTokenName     = "TokenC"
+      , vcProviderPKH   = ""
       }
 
 -------------------------------------------------------------------------------
@@ -194,6 +198,7 @@ listLength arr = countHowManyElements arr 0
   where
     countHowManyElements [] counter = counter
     countHowManyElements (_:xs) counter = countHowManyElements xs (counter + 1)
+
 -------------------------------------------------------------------------------
 -- | mkValidator :: Data -> Datum -> Redeemer -> ScriptContext -> Bool
 -------------------------------------------------------------------------------
@@ -230,7 +235,8 @@ mkValidator vc datum redeemer context
         ; let e = traceIfFalse "Value Not Return To Script"   $ checkContTxOutForValue (getContinuingOutputs context) (validatedValue - retrieveValue)
         ; let f = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (cdtVestingUserPKH datum) retrieveValue
         ; let g = traceIfFalse "No Funds Left"                $ Value.valueOf validatedValue (vcPolicyID vc) (vcTokenName vc) > (0 :: Integer)
-        ;         traceIfFalse "Error: retrieveFunds Failure" $ all (==(True :: Bool)) [a,b,c,d,e,f,g]
+        ; let h = traceIfFalse "Provider Not Being Paid"      $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf 1000000)
+        ;         traceIfFalse "Error: retrieveFunds Failure" $ all (==(True :: Bool)) [a,b,c,d,e,f,g,h]
         }
 
       -- close an empty vesting utxo
@@ -239,15 +245,16 @@ mkValidator vc datum redeemer context
         { let a = traceIfFalse "Single Script Only"           checkForSingleScriptInput
         ; let b = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (cdtTreasuryPKH datum) validatedValue
         ; let c = traceIfFalse "No Funds Left"                $ Value.valueOf validatedValue (vcPolicyID vc) (vcTokenName vc) == (0 :: Integer)
-        ;         traceIfFalse "Error: retrieveFunds Failure" $ all (==(True :: Bool)) [a,b,c]
+        ;         traceIfFalse "Error: closeVestment Failure" $ all (==(True :: Bool)) [a,b,c]
         }
 
-      -- multi sig vote
+      -- multi sig vote off chain heavy
       petitionVote :: Bool
       petitionVote = do
         { let a = traceIfFalse "Single Script Only"           checkForSingleScriptInput
         ; let b = traceIfFalse "Not Enough Votes"             $ checkMajoritySigners (cdtVestingGroupPKH datum) 0
-        ;         traceIfFalse "Error: retrieveFunds Failure" $ all (==(True :: Bool)) [a,b]
+        ; let c = traceIfFalse "Provider Not Being Paid"      $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf 1000000)
+        ;         traceIfFalse "Error: petitionVote Failure" $ all (==(True :: Bool)) [a,b,c]
         }
       -------------------------------------------------------------------------
       -- | Helpers
