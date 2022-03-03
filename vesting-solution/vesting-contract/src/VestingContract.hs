@@ -34,6 +34,7 @@ module VestingContract
   , CustomDatumType
   , lockInterval
   , rewardFunction
+  , listLength
   ) where
 
 import           Cardano.Api.Shelley       (PlutusScript (..), PlutusScriptV1)
@@ -42,6 +43,7 @@ import           Codec.Serialise           ( serialise )
 
 import qualified Data.ByteString.Lazy      as LBS
 import qualified Data.ByteString.Short     as SBS
+import qualified Data.Maybe
 
 import           Playground.Contract
 import           Plutus.Contract
@@ -55,6 +57,7 @@ import           PlutusTx.Prelude
 import qualified Plutus.V1.Ledger.Scripts  as Plutus
 import qualified Plutus.V1.Ledger.Interval as Interval
 import qualified Plutus.V1.Ledger.Time     as Time
+import qualified Plutus.V1.Ledger.Value    as Value
 
 
 {- |
@@ -75,8 +78,6 @@ data VestingContractParams = VestingContractParams
   -- ^ The policy id of the vesting token.
   , vcTokenName     :: !TokenName
   -- ^ The token name of the vesting token.
-  , vcMasterKey     :: !PubKeyHash
-  -- ^ Experimental master key by pass
   }
 PlutusTx.makeLift ''VestingContractParams
 
@@ -108,7 +109,8 @@ instance Eq CustomDatumType where
            ( cdtVestingUserPKH  a == cdtVestingUserPKH   b) &&
            ( cdtVestingGroupPKH a == cdtVestingGroupPKH  b) &&
            ( cdtTreasuryPKH     a == cdtTreasuryPKH      b) &&
-           ( cdtDeadlineParams  a == cdtDeadlineParams   b) &&
+           ( head (cdtDeadlineParams a) == head (cdtDeadlineParams b)) &&
+           ( head (tail (cdtDeadlineParams a)) + head (cdtDeadlineParams a) == head (tail (cdtDeadlineParams b))) &&
            ( cdtRewardParams    a == cdtRewardParams     b)
 
 
@@ -135,7 +137,6 @@ validator = Scripts.validatorScript (typedValidator vc)
       { vcMajorityParam = 3
       , vcPolicyID      = "5243f6530c3507a3ed1217848475abb5ec0ec122e00c82e878ff2292"
       , vcTokenName     = "TokenC"
-      , vcMasterKey     = ""
       }
 
 -------------------------------------------------------------------------------
@@ -146,10 +147,7 @@ validator = Scripts.validatorScript (typedValidator vc)
 lockInterval :: CustomDatumType -> Interval POSIXTime
 lockInterval datum' = Interval.interval (integerToPOSIX startingTime) (integerToPOSIX endingTime)
   where
-    refEpoch :: Integer
-    -- refEpoch = 312 -- mainnet
-    refEpoch = 178 -- testnet
-
+    -- unix time at epoch 312
     timeTilRefEpoch :: Integer
     -- timeTilRefEpoch = 1640987100000  -- mainnet
     timeTilRefEpoch = 1640895900000  -- testnet
@@ -157,19 +155,16 @@ lockInterval datum' = Interval.interval (integerToPOSIX startingTime) (integerTo
     lengthOfDay :: Integer
     lengthOfDay = 1000*60*60*24
 
-    lengthOfEpoch :: Integer
-    lengthOfEpoch = 5 * lengthOfDay
-
-    -- pick some epoch to start
-    startEpoch :: Integer
-    startEpoch = head $ tail $ cdtDeadlineParams datum'
+    -- pick some day to start
+    startDay :: Integer
+    startDay = head $ tail $ cdtDeadlineParams datum'
 
     -- pick some number of days for the vesting period
     lockedPeriod :: Integer
     lockedPeriod = head $ cdtDeadlineParams datum'
 
     startingTime :: Integer
-    startingTime = timeTilRefEpoch + (startEpoch - refEpoch)*lengthOfEpoch
+    startingTime = timeTilRefEpoch + startDay*lengthOfDay
 
     endingTime :: Integer
     endingTime = startingTime + lockedPeriod*lengthOfDay
@@ -179,8 +174,8 @@ lockInterval datum' = Interval.interval (integerToPOSIX startingTime) (integerTo
     integerToPOSIX x = Time.fromMilliSeconds $ Time.DiffMilliSeconds x
 
 -- Assume Linear reward
-rewardFunction :: CustomDatumType -> Integer -> Integer
-rewardFunction datum' t = v0 - t * deltaV
+rewardFunction :: CustomDatumType -> Integer
+rewardFunction datum' = v0 - t * deltaV
   where
     -- starting amount
     v0 :: Integer
@@ -190,26 +185,138 @@ rewardFunction datum' t = v0 - t * deltaV
     deltaV :: Integer
     deltaV = head $ cdtRewardParams datum'
 
+    t :: Integer
+    t = cdtVestingStage datum'
+
+-- calculate the length of list
+listLength :: [a] -> Integer
+listLength arr = countHowManyElements arr 0
+  where
+    countHowManyElements [] counter = counter
+    countHowManyElements (_:xs) counter = countHowManyElements xs (counter + 1)
 -------------------------------------------------------------------------------
 -- | mkValidator :: Data -> Datum -> Redeemer -> ScriptContext -> Bool
 -------------------------------------------------------------------------------
 {-# INLINABLE mkValidator #-}
 mkValidator :: VestingContractParams -> CustomDatumType -> CustomRedeemerType -> ScriptContext -> Bool
-mkValidator _ _ redeemer _
+mkValidator vc datum redeemer context
   | checkRedeemer = True
-  | otherwise     = False
+  | otherwise     = traceIfFalse "Validation Has Failed" False
     where
       -------------------------------------------------------------------------
       -- | Use the redeemer to switch validators.
       -------------------------------------------------------------------------
       checkRedeemer :: Bool
       checkRedeemer
-        | action == 0 = True
-        | otherwise   = False
+        | action == 0 = retrieveFunds
+        | action == 1 = closeVestment
+        | action == 2 = petitionVote
+        | otherwise   = traceIfFalse "Error: checkRedeemer Failure" False
 
       action :: Integer
       action = crtAction redeemer
 
+      -------------------------------------------------------------------------
+      -- | On-chain endpoints
+      -------------------------------------------------------------------------
+
+      -- retrieve funds from the contract
+      retrieveFunds :: Bool
+      retrieveFunds = do
+        { let a = traceIfFalse "Single Script Only"           checkForSingleScriptInput
+        ; let b = traceIfFalse "Incorrect Signer"             $ txSignedBy (scriptContextTxInfo context) (cdtVestingUserPKH datum)
+        ; let c = traceIfFalse "The Value Is Still Locked"    $ not $ overlaps (lockInterval datum) (txInfoValidRange $ scriptContextTxInfo context)
+        ; let d = traceIfFalse "Incorrect Incoming Datum"     $ embeddedDatum (getContinuingOutputs context) == datum
+        ; let e = traceIfFalse "Value Not Return To Script"   $ checkContTxOutForValue (getContinuingOutputs context) (validatedValue - retrieveValue)
+        ; let f = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (cdtVestingUserPKH datum) retrieveValue
+        ; let g = traceIfFalse "No Funds Left"                $ Value.valueOf validatedValue (vcPolicyID vc) (vcTokenName vc) > (0 :: Integer)
+        ;         traceIfFalse "Error: retrieveFunds Failure" $ all (==(True :: Bool)) [a,b,c,d,e,f,g]
+        }
+
+      -- close an empty vesting utxo
+      closeVestment :: Bool
+      closeVestment = do
+        { let a = traceIfFalse "Single Script Only"           checkForSingleScriptInput
+        ; let b = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (cdtTreasuryPKH datum) validatedValue
+        ; let c = traceIfFalse "No Funds Left"                $ Value.valueOf validatedValue (vcPolicyID vc) (vcTokenName vc) == (0 :: Integer)
+        ;         traceIfFalse "Error: retrieveFunds Failure" $ all (==(True :: Bool)) [a,b,c]
+        }
+
+      -- multi sig vote
+      petitionVote :: Bool
+      petitionVote = do
+        { let a = traceIfFalse "Single Script Only"           checkForSingleScriptInput
+        ; let b = traceIfFalse "Not Enough Votes"             $ checkMajoritySigners (cdtVestingGroupPKH datum) 0
+        ;         traceIfFalse "Error: retrieveFunds Failure" $ all (==(True :: Bool)) [a,b]
+        }
+      -------------------------------------------------------------------------
+      -- | Helpers
+      -------------------------------------------------------------------------
+
+      validatedValue :: Value
+      validatedValue = case findOwnInput context of
+          Nothing    -> traceError "No Input to Validate"
+          Just input -> txOutValue $ txInInfoResolved input
+
+      retrieveValue :: Value
+      retrieveValue = Value.singleton (vcPolicyID vc) (vcTokenName vc) (rewardFunction datum)
+
+      -- Check for embedded datum in the txout
+      embeddedDatum :: [TxOut] -> CustomDatumType
+      embeddedDatum [] = datum
+      embeddedDatum (x:xs) = case txOutDatumHash x of
+        Nothing -> embeddedDatum xs
+        Just dh -> case findDatum dh $ scriptContextTxInfo context of
+          Nothing         -> datum
+          Just (Datum d)  -> Data.Maybe.fromMaybe datum (PlutusTx.fromBuiltinData d)
+
+      checkMajoritySigners :: [PubKeyHash] -> Integer -> Bool
+      checkMajoritySigners [] counter = let numberOfVestors = listLength (cdtVestingGroupPKH datum) in if numberOfVestors <= vcMajorityParam vc then counter == numberOfVestors else counter >= vcMajorityParam vc
+      checkMajoritySigners (pkh:pkhs) !counter
+        | txSignedBy (scriptContextTxInfo context) pkh = checkMajoritySigners pkhs (counter + 1)
+        | otherwise = checkMajoritySigners pkhs counter
+
+      -- | Search each TxOut for the value.
+      checkContTxOutForValue :: [TxOut] -> Value -> Bool
+      checkContTxOutForValue [] _val = False
+      checkContTxOutForValue (x:xs) val
+        | checkVal  = True
+        | otherwise = checkContTxOutForValue xs val
+        where
+          checkVal :: Bool
+          checkVal = Value.geq (txOutValue x) val
+
+      -- Search each TxOut for the correct address and value.
+      checkTxOutForValueAtPKH :: [TxOut] -> PubKeyHash -> Value -> Bool
+      checkTxOutForValueAtPKH [] _pkh _val = False
+      checkTxOutForValueAtPKH (x:xs) pkh val
+        | checkAddr && checkVal = True
+        | otherwise             = checkTxOutForValueAtPKH xs pkh val
+        where
+          checkAddr :: Bool
+          checkAddr = txOutAddress x == pubKeyHashAddress pkh
+
+          checkVal :: Bool
+          checkVal = Value.geq (txOutValue x) val
+
+      -- Force a single script utxo input.
+      checkForSingleScriptInput :: Bool
+      checkForSingleScriptInput = loopInputs (txInfoInputs $ scriptContextTxInfo context) 0
+        where
+          loopInputs :: [TxInInfo] -> Integer -> Bool
+          loopInputs []     counter = counter == 1
+          loopInputs (x:xs) counter = case txOutDatumHash $ txInInfoResolved x of
+              Nothing -> do
+                if counter > 1
+                  then loopInputs [] counter
+                  else loopInputs xs counter
+              Just _  -> do
+                if counter > 1
+                  then loopInputs [] counter
+                  else loopInputs xs (counter + 1)
+-------------------------------------------------------------------------
+-- | End of Validator.
+-------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
 -- | This determines the data type for Datum and Redeemer.
