@@ -251,9 +251,9 @@ mkValidator vc datum redeemer context
       -- multi sig vote off chain heavy
       petitionVote :: Bool
       petitionVote = do
-        { let a = traceIfFalse "Single Script Only"           checkForSingleScriptInput
-        ; let b = traceIfFalse "Not Enough Votes"             $ checkMajoritySigners (cdtVestingGroupPKH datum) 0
-        ; let c = traceIfFalse "Provider Not Being Paid"      $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf 1000000)
+        { let a = traceIfFalse "Single Script Only"          checkForSingleScriptInput
+        ; let b = traceIfFalse "Not Enough Votes"            $ checkMajoritySigners (cdtVestingGroupPKH datum) 0
+        ; let c = traceIfFalse "Provider Not Being Paid"     $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf 1000000)
         ;         traceIfFalse "Error: petitionVote Failure" $ all (==(True :: Bool)) [a,b,c]
         }
       -------------------------------------------------------------------------
