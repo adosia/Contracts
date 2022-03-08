@@ -32,6 +32,8 @@ module VestingContract
   , Schema
   , contract
   , CustomDatumType
+  , testData'
+  , testData''
   , lockInterval
   , rewardFunction
   , listLength
@@ -73,14 +75,15 @@ import qualified Plutus.V1.Ledger.Ada      as Ada
 -- | Create the token sale parameters data object.
 -------------------------------------------------------------------------------
 data VestingContractParams = VestingContractParams
-  { vcMajorityParam :: !Integer
+  { vcMajorityParam  :: !Integer
   -- ^ The number of keys that determines the majority.
-  , vcPolicyID      :: !CurrencySymbol
+  , vcPolicyID       :: !CurrencySymbol
   -- ^ The policy id of the vesting token.
-  , vcTokenName     :: !TokenName
+  , vcTokenName      :: !TokenName
   -- ^ The token name of the vesting token.
-  , vcProviderPKH   :: !PubKeyHash
+  , vcProviderPKH    :: !PubKeyHash
   -- ^ The vesting as a service provider pkh
+  , vcProviderProfit :: !Integer
   }
 PlutusTx.makeLift ''VestingContractParams
 
@@ -103,20 +106,40 @@ data CustomDatumType = CustomDatumType
   , cdtRewardParams    :: ![Integer]
   -- ^ The reward function parameters [deltaV, v0]
   }
+    deriving stock (Show, Generic)
+    deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''CustomDatumType
 PlutusTx.makeLift ''CustomDatumType
 
+-- old is a
+-- new is b
 instance Eq CustomDatumType where
   {-# INLINABLE (==) #-}
-  a == b = ( cdtVestingStage    a == cdtVestingStage b + 1) &&
-           ( cdtVestingUserPKH  a == cdtVestingUserPKH   b) &&
-           ( cdtVestingGroupPKH a == cdtVestingGroupPKH  b) &&
-           ( cdtTreasuryPKH     a == cdtTreasuryPKH      b) &&
-           ( cdtRewardParams    a == cdtRewardParams     b) &&
+  a == b = ( cdtVestingStage a + 1 == cdtVestingStage    b) &&
+           ( cdtVestingUserPKH   a == cdtVestingUserPKH  b) &&
+           ( cdtVestingGroupPKH  a == cdtVestingGroupPKH b) &&
+           ( cdtTreasuryPKH      a == cdtTreasuryPKH     b) &&
+           ( cdtRewardParams     a == cdtRewardParams    b) &&
            ( head (cdtDeadlineParams a) == head (cdtDeadlineParams b)) &&
            ( head (tail (cdtDeadlineParams a)) + head (cdtDeadlineParams a) == head (tail (cdtDeadlineParams b)))
 
+testData' :: CustomDatumType
+testData' = CustomDatumType { cdtVestingStage = 0
+                           , cdtVestingUserPKH = ""
+                           , cdtVestingGroupPKH = [""]
+                           , cdtTreasuryPKH = ""
+                           , cdtDeadlineParams = [5,0]
+                           , cdtRewardParams = [0,10]
+                           }
 
+testData'' :: CustomDatumType
+testData'' = CustomDatumType  { cdtVestingStage = 1
+                              , cdtVestingUserPKH = ""
+                              , cdtVestingGroupPKH = [""]
+                              , cdtTreasuryPKH = ""
+                              , cdtDeadlineParams = [5,5]
+                              , cdtRewardParams = [0,10]
+                              }
 -------------------------------------------------------------------------------
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
@@ -138,9 +161,10 @@ validator = Scripts.validatorScript (typedValidator vc)
   where
     vc = VestingContractParams
       { vcMajorityParam = 3
-      , vcPolicyID      = "5243f6530c3507a3ed1217848475abb5ec0ec122e00c82e878ff2292"
-      , vcTokenName     = "TokenC"
-      , vcProviderPKH   = ""
+      , vcPolicyID      = "57fca08abbaddee36da742a839f7d83a7e1d2419f1507fcbf3916522"
+      , vcTokenName     = "CHOC"
+      , vcProviderPKH   = "06c35b3567b2d8f4c3a838c44050fa785c702d532467c8bfdb85046b"
+      , vcProviderProfit = 1000000
       }
 
 -------------------------------------------------------------------------------
@@ -216,7 +240,7 @@ mkValidator vc datum redeemer context
         | action == 0 = retrieveFunds
         | action == 1 = closeVestment
         | action == 2 = petitionVote
-        | otherwise   = traceIfFalse "Error: checkRedeemer Failure" False
+        | otherwise   = traceIfFalse "Error: checkRedeemer Failure" True -- Set True For BYPASS
 
       action :: Integer
       action = crtAction redeemer
@@ -231,11 +255,11 @@ mkValidator vc datum redeemer context
         { let a = traceIfFalse "Single Script Only"           checkForSingleScriptInput
         ; let b = traceIfFalse "Incorrect Signer"             $ txSignedBy (scriptContextTxInfo context) (cdtVestingUserPKH datum)
         ; let c = traceIfFalse "The Value Is Still Locked"    $ not $ overlaps (lockInterval datum) (txInfoValidRange $ scriptContextTxInfo context)
-        ; let d = traceIfFalse "Incorrect Incoming Datum"     $ embeddedDatum (getContinuingOutputs context) == datum
+        ; let d = traceIfFalse "Incorrect Incoming Datum"     $ datum == embeddedDatum (getContinuingOutputs context)
         ; let e = traceIfFalse "Value Not Return To Script"   $ checkContTxOutForValue (getContinuingOutputs context) (validatedValue - retrieveValue)
         ; let f = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (cdtVestingUserPKH datum) retrieveValue
         ; let g = traceIfFalse "No Funds Left"                $ Value.valueOf validatedValue (vcPolicyID vc) (vcTokenName vc) > (0 :: Integer)
-        ; let h = traceIfFalse "Provider Not Being Paid"      $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf 1000000)
+        ; let h = traceIfFalse "Provider Not Being Paid"      $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf $ vcProviderProfit vc)
         ;         traceIfFalse "Error: retrieveFunds Failure" $ all (==(True :: Bool)) [a,b,c,d,e,f,g,h]
         }
 
@@ -244,7 +268,7 @@ mkValidator vc datum redeemer context
       closeVestment = do
         { let a = traceIfFalse "Single Script Only"           checkForSingleScriptInput
         ; let b = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (cdtTreasuryPKH datum) validatedValue
-        ; let c = traceIfFalse "No Funds Left"                $ Value.valueOf validatedValue (vcPolicyID vc) (vcTokenName vc) == (0 :: Integer)
+        ; let c = traceIfFalse "Funds Are Left"               $ Value.valueOf validatedValue (vcPolicyID vc) (vcTokenName vc) == (0 :: Integer)
         ;         traceIfFalse "Error: closeVestment Failure" $ all (==(True :: Bool)) [a,b,c]
         }
 
@@ -253,7 +277,7 @@ mkValidator vc datum redeemer context
       petitionVote = do
         { let a = traceIfFalse "Single Script Only"          checkForSingleScriptInput
         ; let b = traceIfFalse "Not Enough Votes"            $ checkMajoritySigners (cdtVestingGroupPKH datum) 0
-        ; let c = traceIfFalse "Provider Not Being Paid"     $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf 1000000)
+        ; let c = traceIfFalse "Provider Not Being Paid"     $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf $ vcProviderProfit vc)
         ;         traceIfFalse "Error: petitionVote Failure" $ all (==(True :: Bool)) [a,b,c]
         }
       -------------------------------------------------------------------------
