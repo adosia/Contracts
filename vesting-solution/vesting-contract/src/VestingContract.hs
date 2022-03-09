@@ -104,15 +104,14 @@ data CustomDatumType = CustomDatumType
   , cdtDeadlineParams  :: ![Integer]
   -- ^ The deadline function parameters [deltaT, t0]
   , cdtRewardParams    :: ![Integer]
-  -- ^ The reward function parameters [deltaV, v0]
+  -- ^ The reward   function parameters [deltaV, v0]
   }
     deriving stock (Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''CustomDatumType
 PlutusTx.makeLift ''CustomDatumType
 
--- old is a
--- new is b
+-- old is a; new is b
 instance Eq CustomDatumType where
   {-# INLINABLE (==) #-}
   a == b = ( cdtVestingStage a + 1 == cdtVestingStage    b) &&
@@ -180,6 +179,7 @@ lockInterval datum' = Interval.interval (integerToPOSIX startingTime) (integerTo
     -- timeTilRefEpoch = 1640987100000  -- mainnet
     timeTilRefEpoch = 1640895900000  -- testnet
 
+    -- time unit
     lengthOfDay :: Integer
     lengthOfDay = 1000*60*60*24
 
@@ -315,7 +315,7 @@ mkValidator vc datum redeemer context
         | otherwise = checkContTxOutForValue xs val
         where
           checkVal :: Bool
-          checkVal = Value.geq (txOutValue x) val
+          checkVal = Value.geq (txOutValue x) val -- This may need to be ==
 
       -- Search each TxOut for the correct address and value.
       checkTxOutForValueAtPKH :: [TxOut] -> PubKeyHash -> Value -> Bool
@@ -328,7 +328,7 @@ mkValidator vc datum redeemer context
           checkAddr = txOutAddress x == pubKeyHashAddress pkh
 
           checkVal :: Bool
-          checkVal = Value.geq (txOutValue x) val
+          checkVal = Value.geq (txOutValue x) val -- This may need to be ==
 
       -- Force a single script utxo input.
       checkForSingleScriptInput :: Bool
@@ -336,7 +336,7 @@ mkValidator vc datum redeemer context
         where
           loopInputs :: [TxInInfo] -> Integer -> Bool
           loopInputs []     counter = counter == 1
-          loopInputs (x:xs) counter = case txOutDatumHash $ txInInfoResolved x of
+          loopInputs (x:xs) !counter = case txOutDatumHash $ txInInfoResolved x of
               Nothing -> do
                 if counter > 1
                   then loopInputs [] counter
