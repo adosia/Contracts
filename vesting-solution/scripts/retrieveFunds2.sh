@@ -18,7 +18,7 @@ token_name="CHOC"
 amount=10000
 token_hex=$(echo -n ${token_name} | xxd -ps)
 vestor_asset="1000 ${policy_id}.${token_hex}"
-sc_asset="9000 ${policy_id}.${token_hex}"
+sc_asset="8000 ${policy_id}.${token_hex}"
 
 # minimum ada to get in
 vestor_min_value=$(${cli} transaction calculate-min-required-utxo \
@@ -80,24 +80,26 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${vestor_address} \
     --tx-in ${vestor_tx_in} \
-    --tx-in-collateral ${collateral_tx_in} \
+    --tx-in-collateral c630404afc060fb2695c08881dde6f215a42afbff4aaaf1a23586738e8b32bec#0 \
     --tx-in ${script_tx_in}  \
-    --tx-in-datum-file data/create_vestment_datum.json \
+    --tx-in-datum-file data/retrieved_vestment_datum.json \
     --tx-in-redeemer-file data/retrieve_redeemer.json \
+    --tx-out="${vestor_address} + ${vestor_min_value} + 1000 ${policy_id}.${token_hex}" \
     --tx-out ${provider_address}+1000000 \
     --tx-out="${vestor_address_out}" \
     --tx-out="${sc_address_out}" \
-    --tx-out-datum-embed-file data/retrieved_vestment_datum.json \
+    --tx-out-datum-embed-file data/retrieved_vestment_datum2.json \
     --required-signer wallets/vestor-wallet/payment.skey \
     --tx-in-script-file ${script_path} \
     --testnet-magic 1097911063)
 
+    # --tx-in-collateral ${collateral_tx_in} \
 IFS=':' read -ra VALUE <<< "$FEE"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
 FEE=${FEE[1]}
 echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
-exit
+# exit
 #
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \

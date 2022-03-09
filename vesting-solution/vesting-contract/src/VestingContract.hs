@@ -124,20 +124,20 @@ instance Eq CustomDatumType where
            ( head (tail (cdtDeadlineParams a)) + head (cdtDeadlineParams a) == head (tail (cdtDeadlineParams b)))
 
 testData' :: CustomDatumType
-testData' = CustomDatumType { cdtVestingStage = 0
+testData' = CustomDatumType { cdtVestingStage = 1
                            , cdtVestingUserPKH = ""
                            , cdtVestingGroupPKH = [""]
                            , cdtTreasuryPKH = ""
-                           , cdtDeadlineParams = [5,0]
+                           , cdtDeadlineParams = [5,5]
                            , cdtRewardParams = [0,10]
                            }
 
 testData'' :: CustomDatumType
-testData'' = CustomDatumType  { cdtVestingStage = 1
+testData'' = CustomDatumType  { cdtVestingStage = 2
                               , cdtVestingUserPKH = ""
                               , cdtVestingGroupPKH = [""]
                               , cdtTreasuryPKH = ""
-                              , cdtDeadlineParams = [5,5]
+                              , cdtDeadlineParams = [5,10]
                               , cdtRewardParams = [0,10]
                               }
 -------------------------------------------------------------------------------
@@ -246,7 +246,7 @@ mkValidator vc datum redeemer context
       action = crtAction redeemer
 
       -------------------------------------------------------------------------
-      -- | On-chain endpoints
+      -- | On-chain endpoints 
       -------------------------------------------------------------------------
 
       -- retrieve funds from the contract
