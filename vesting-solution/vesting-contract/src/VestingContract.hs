@@ -224,9 +224,9 @@ listLength arr = countHowManyElements arr 0
     countHowManyElements [] counter = counter
     countHowManyElements (_:xs) counter = countHowManyElements xs (counter + 1)
 
--- optimal keys = floor(N*p/100) + 1
+-- optimal keys = floor(N*p/100)
 calculateMajority :: Integer -> Integer -> Integer
-calculateMajority numberOfKeys majorityParam = divide (numberOfKeys * majorityParam) 100 + 1
+calculateMajority numberOfKeys majorityParam = divide (numberOfKeys * majorityParam) 100
 
 -------------------------------------------------------------------------------
 -- | mkValidator :: Data -> Datum -> Redeemer -> ScriptContext -> Bool
@@ -280,10 +280,9 @@ mkValidator vc datum redeemer context
       -- multi sig vote off chain heavy
       petitionVote :: Bool
       petitionVote = do
-        { let a = traceIfFalse "Single Script Only"          checkForSingleScriptInput
-        ; let b = traceIfFalse "Not Enough Votes"            $ checkMajoritySigners (cdtVestingGroupPKH datum) 0
-        ; let c = traceIfFalse "Provider Not Being Paid"     $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf $ vcProviderProfit vc)
-        ;         traceIfFalse "Error: petitionVote Failure" $ all (==(True :: Bool)) [a,b,c]
+        { let a = traceIfFalse "Not Enough Signers"          $ checkMajoritySigners (cdtVestingGroupPKH datum) 0
+        ; let b = traceIfFalse "Provider Not Being Paid"     $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf $ vcProviderProfit vc)
+        ;         traceIfFalse "Error: petitionVote Failure" $ all (==(True :: Bool)) [a,b]
         }
       -------------------------------------------------------------------------
       -- | Helpers
@@ -316,7 +315,7 @@ mkValidator vc datum redeemer context
           else counter >= requiredSigners
       checkMajoritySigners (pkh:pkhs) !counter
         | txSignedBy (scriptContextTxInfo context) pkh = checkMajoritySigners pkhs (counter + 1)
-        | otherwise = checkMajoritySigners pkhs counter
+        | otherwise                                    = checkMajoritySigners pkhs counter
 
       -- | Search each TxOut for the value.
       checkContTxOutForValue :: [TxOut] -> Value -> Bool
@@ -348,16 +347,16 @@ mkValidator vc datum redeemer context
       checkForSingleScriptInput = loopInputs (txInfoInputs $ scriptContextTxInfo context) 0
         where
           loopInputs :: [TxInInfo] -> Integer -> Bool
-          loopInputs []     counter = counter == 1
+          loopInputs []     counter  = counter == 1
           loopInputs (x:xs) !counter = case txOutDatumHash $ txInInfoResolved x of
               Nothing -> do
                 if counter > 1
-                  then loopInputs [] counter
-                  else loopInputs xs counter
+                then loopInputs [] counter
+                else loopInputs xs counter
               Just _  -> do
                 if counter > 1
-                  then loopInputs [] counter
-                  else loopInputs xs (counter + 1)
+                then loopInputs [] counter
+                else loopInputs xs (counter + 1)
 -------------------------------------------------------------------------
 -- | End of Validator.
 -------------------------------------------------------------------------
