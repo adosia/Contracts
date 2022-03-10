@@ -32,9 +32,12 @@ module VestingContract
   , Schema
   , contract
   , CustomDatumType
+  , testData'
+  , testData''
   , lockInterval
   , rewardFunction
   , listLength
+  , calculateMajority
   ) where
 
 import           Cardano.Api.Shelley       (PlutusScript (..), PlutusScriptV1)
@@ -73,14 +76,15 @@ import qualified Plutus.V1.Ledger.Ada      as Ada
 -- | Create the token sale parameters data object.
 -------------------------------------------------------------------------------
 data VestingContractParams = VestingContractParams
-  { vcMajorityParam :: !Integer
-  -- ^ The number of keys that determines the majority.
-  , vcPolicyID      :: !CurrencySymbol
+  { vcMajorityParam  :: !Integer
+  -- ^ The percentage of keys that determines the majority, 64 is floor(64*N/100).
+  , vcPolicyID       :: !CurrencySymbol
   -- ^ The policy id of the vesting token.
-  , vcTokenName     :: !TokenName
+  , vcTokenName      :: !TokenName
   -- ^ The token name of the vesting token.
-  , vcProviderPKH   :: !PubKeyHash
+  , vcProviderPKH    :: !PubKeyHash
   -- ^ The vesting as a service provider pkh
+  , vcProviderProfit :: !Integer
   }
 PlutusTx.makeLift ''VestingContractParams
 
@@ -101,22 +105,41 @@ data CustomDatumType = CustomDatumType
   , cdtDeadlineParams  :: ![Integer]
   -- ^ The deadline function parameters [deltaT, t0]
   , cdtRewardParams    :: ![Integer]
-  -- ^ The reward function parameters [deltaV, v0]
+  -- ^ The reward   function parameters [deltaV, v0]
   }
+    deriving stock (Show, Generic)
+    deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''CustomDatumType
 PlutusTx.makeLift ''CustomDatumType
 
+-- old is a; new is b
 instance Eq CustomDatumType where
   {-# INLINABLE (==) #-}
-  a == b = ( cdtVestingStage    a == cdtVestingStage b + 1) &&
-           ( cdtVestingUserPKH  a == cdtVestingUserPKH   b) &&
-           ( cdtVestingGroupPKH a == cdtVestingGroupPKH  b) &&
-           ( cdtTreasuryPKH     a == cdtTreasuryPKH      b) &&
-           ( cdtRewardParams    a == cdtRewardParams     b) &&
+  a == b = ( cdtVestingStage a + 1 == cdtVestingStage    b) &&
+           ( cdtVestingUserPKH   a == cdtVestingUserPKH  b) &&
+           ( cdtVestingGroupPKH  a == cdtVestingGroupPKH b) &&
+           ( cdtTreasuryPKH      a == cdtTreasuryPKH     b) &&
+           ( cdtRewardParams     a == cdtRewardParams    b) &&
            ( head (cdtDeadlineParams a) == head (cdtDeadlineParams b)) &&
            ( head (tail (cdtDeadlineParams a)) + head (cdtDeadlineParams a) == head (tail (cdtDeadlineParams b)))
 
+testData' :: CustomDatumType
+testData' = CustomDatumType { cdtVestingStage = 1
+                           , cdtVestingUserPKH = ""
+                           , cdtVestingGroupPKH = [""]
+                           , cdtTreasuryPKH = ""
+                           , cdtDeadlineParams = [5,5]
+                           , cdtRewardParams = [0,10]
+                           }
 
+testData'' :: CustomDatumType
+testData'' = CustomDatumType  { cdtVestingStage = 2
+                              , cdtVestingUserPKH = ""
+                              , cdtVestingGroupPKH = [""]
+                              , cdtTreasuryPKH = ""
+                              , cdtDeadlineParams = [5,10]
+                              , cdtRewardParams = [0,10]
+                              }
 -------------------------------------------------------------------------------
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
@@ -137,10 +160,11 @@ validator :: Plutus.Validator
 validator = Scripts.validatorScript (typedValidator vc)
   where
     vc = VestingContractParams
-      { vcMajorityParam = 3
-      , vcPolicyID      = "5243f6530c3507a3ed1217848475abb5ec0ec122e00c82e878ff2292"
-      , vcTokenName     = "TokenC"
-      , vcProviderPKH   = ""
+      { vcMajorityParam = 50
+      , vcPolicyID      = "57fca08abbaddee36da742a839f7d83a7e1d2419f1507fcbf3916522"
+      , vcTokenName     = "CHOC"
+      , vcProviderPKH   = "06c35b3567b2d8f4c3a838c44050fa785c702d532467c8bfdb85046b"
+      , vcProviderProfit = 1000000
       }
 
 -------------------------------------------------------------------------------
@@ -149,13 +173,14 @@ validator = Scripts.validatorScript (typedValidator vc)
 
 -- Pick the locking interval
 lockInterval :: CustomDatumType -> Interval POSIXTime
-lockInterval datum' = Interval.interval (integerToPOSIX startingTime) (integerToPOSIX endingTime)
+lockInterval datum' = Interval.to (integerToPOSIX endingTime)
   where
     -- unix time at epoch 312
     timeTilRefEpoch :: Integer
     -- timeTilRefEpoch = 1640987100000  -- mainnet
     timeTilRefEpoch = 1640895900000  -- testnet
 
+    -- time unit
     lengthOfDay :: Integer
     lengthOfDay = 1000*60*60*24
 
@@ -199,6 +224,10 @@ listLength arr = countHowManyElements arr 0
     countHowManyElements [] counter = counter
     countHowManyElements (_:xs) counter = countHowManyElements xs (counter + 1)
 
+-- optimal keys = floor(N*p/100)
+calculateMajority :: Integer -> Integer -> Integer
+calculateMajority numberOfKeys majorityParam = divide (numberOfKeys * majorityParam) 100
+
 -------------------------------------------------------------------------------
 -- | mkValidator :: Data -> Datum -> Redeemer -> ScriptContext -> Bool
 -------------------------------------------------------------------------------
@@ -216,13 +245,13 @@ mkValidator vc datum redeemer context
         | action == 0 = retrieveFunds
         | action == 1 = closeVestment
         | action == 2 = petitionVote
-        | otherwise   = traceIfFalse "Error: checkRedeemer Failure" False
+        | otherwise   = traceIfFalse "Error: checkRedeemer Failure" True -- Set True For BYPASS
 
       action :: Integer
       action = crtAction redeemer
 
       -------------------------------------------------------------------------
-      -- | On-chain endpoints
+      -- | On-chain endpoints 
       -------------------------------------------------------------------------
 
       -- retrieve funds from the contract
@@ -231,11 +260,11 @@ mkValidator vc datum redeemer context
         { let a = traceIfFalse "Single Script Only"           checkForSingleScriptInput
         ; let b = traceIfFalse "Incorrect Signer"             $ txSignedBy (scriptContextTxInfo context) (cdtVestingUserPKH datum)
         ; let c = traceIfFalse "The Value Is Still Locked"    $ not $ overlaps (lockInterval datum) (txInfoValidRange $ scriptContextTxInfo context)
-        ; let d = traceIfFalse "Incorrect Incoming Datum"     $ embeddedDatum (getContinuingOutputs context) == datum
+        ; let d = traceIfFalse "Incorrect Incoming Datum"     $ datum == embeddedDatum (getContinuingOutputs context)
         ; let e = traceIfFalse "Value Not Return To Script"   $ checkContTxOutForValue (getContinuingOutputs context) (validatedValue - retrieveValue)
         ; let f = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (cdtVestingUserPKH datum) retrieveValue
         ; let g = traceIfFalse "No Funds Left"                $ Value.valueOf validatedValue (vcPolicyID vc) (vcTokenName vc) > (0 :: Integer)
-        ; let h = traceIfFalse "Provider Not Being Paid"      $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf 1000000)
+        ; let h = traceIfFalse "Provider Not Being Paid"      $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf $ vcProviderProfit vc)
         ;         traceIfFalse "Error: retrieveFunds Failure" $ all (==(True :: Bool)) [a,b,c,d,e,f,g,h]
         }
 
@@ -244,17 +273,16 @@ mkValidator vc datum redeemer context
       closeVestment = do
         { let a = traceIfFalse "Single Script Only"           checkForSingleScriptInput
         ; let b = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (cdtTreasuryPKH datum) validatedValue
-        ; let c = traceIfFalse "No Funds Left"                $ Value.valueOf validatedValue (vcPolicyID vc) (vcTokenName vc) == (0 :: Integer)
+        ; let c = traceIfFalse "Funds Are Left"               $ Value.valueOf validatedValue (vcPolicyID vc) (vcTokenName vc) == (0 :: Integer)
         ;         traceIfFalse "Error: closeVestment Failure" $ all (==(True :: Bool)) [a,b,c]
         }
 
       -- multi sig vote off chain heavy
       petitionVote :: Bool
       petitionVote = do
-        { let a = traceIfFalse "Single Script Only"          checkForSingleScriptInput
-        ; let b = traceIfFalse "Not Enough Votes"            $ checkMajoritySigners (cdtVestingGroupPKH datum) 0
-        ; let c = traceIfFalse "Provider Not Being Paid"     $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf 1000000)
-        ;         traceIfFalse "Error: petitionVote Failure" $ all (==(True :: Bool)) [a,b,c]
+        { let a = traceIfFalse "Not Enough Signers"          $ checkMajoritySigners (cdtVestingGroupPKH datum) 0
+        ; let b = traceIfFalse "Provider Not Being Paid"     $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf $ vcProviderProfit vc)
+        ;         traceIfFalse "Error: petitionVote Failure" $ all (==(True :: Bool)) [a,b]
         }
       -------------------------------------------------------------------------
       -- | Helpers
@@ -278,10 +306,16 @@ mkValidator vc datum redeemer context
           Just (Datum d)  -> Data.Maybe.fromMaybe datum (PlutusTx.fromBuiltinData d)
 
       checkMajoritySigners :: [PubKeyHash] -> Integer -> Bool
-      checkMajoritySigners [] counter = let numberOfVestors = listLength (cdtVestingGroupPKH datum) in if numberOfVestors <= vcMajorityParam vc then counter == numberOfVestors else counter >= vcMajorityParam vc
+      checkMajoritySigners [] counter = do
+        let numberOfVestors = listLength (cdtVestingGroupPKH datum)
+            majorityParam   = vcMajorityParam vc 
+            requiredSigners = calculateMajority numberOfVestors majorityParam in 
+          if numberOfVestors <= requiredSigners 
+          then counter == numberOfVestors 
+          else counter >= requiredSigners
       checkMajoritySigners (pkh:pkhs) !counter
         | txSignedBy (scriptContextTxInfo context) pkh = checkMajoritySigners pkhs (counter + 1)
-        | otherwise = checkMajoritySigners pkhs counter
+        | otherwise                                    = checkMajoritySigners pkhs counter
 
       -- | Search each TxOut for the value.
       checkContTxOutForValue :: [TxOut] -> Value -> Bool
@@ -291,7 +325,8 @@ mkValidator vc datum redeemer context
         | otherwise = checkContTxOutForValue xs val
         where
           checkVal :: Bool
-          checkVal = Value.geq (txOutValue x) val
+          checkVal = txOutValue x == val -- This may need to be ==
+          -- checkVal = Value.geq (txOutValue x) val -- This may need to be ==
 
       -- Search each TxOut for the correct address and value.
       checkTxOutForValueAtPKH :: [TxOut] -> PubKeyHash -> Value -> Bool
@@ -304,23 +339,24 @@ mkValidator vc datum redeemer context
           checkAddr = txOutAddress x == pubKeyHashAddress pkh
 
           checkVal :: Bool
-          checkVal = Value.geq (txOutValue x) val
+          checkVal = txOutValue x == val -- This may need to be ==
+          -- checkVal = Value.geq (txOutValue x) val -- This may need to be ==
 
       -- Force a single script utxo input.
       checkForSingleScriptInput :: Bool
       checkForSingleScriptInput = loopInputs (txInfoInputs $ scriptContextTxInfo context) 0
         where
           loopInputs :: [TxInInfo] -> Integer -> Bool
-          loopInputs []     counter = counter == 1
-          loopInputs (x:xs) counter = case txOutDatumHash $ txInInfoResolved x of
+          loopInputs []     counter  = counter == 1
+          loopInputs (x:xs) !counter = case txOutDatumHash $ txInInfoResolved x of
               Nothing -> do
                 if counter > 1
-                  then loopInputs [] counter
-                  else loopInputs xs counter
+                then loopInputs [] counter
+                else loopInputs xs counter
               Just _  -> do
                 if counter > 1
-                  then loopInputs [] counter
-                  else loopInputs xs (counter + 1)
+                then loopInputs [] counter
+                else loopInputs xs (counter + 1)
 -------------------------------------------------------------------------
 -- | End of Validator.
 -------------------------------------------------------------------------
