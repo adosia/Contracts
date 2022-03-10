@@ -37,6 +37,7 @@ module VestingContract
   , lockInterval
   , rewardFunction
   , listLength
+  , calculateMajority
   ) where
 
 import           Cardano.Api.Shelley       (PlutusScript (..), PlutusScriptV1)
@@ -76,7 +77,7 @@ import qualified Plutus.V1.Ledger.Ada      as Ada
 -------------------------------------------------------------------------------
 data VestingContractParams = VestingContractParams
   { vcMajorityParam  :: !Integer
-  -- ^ The number of keys that determines the majority.
+  -- ^ The percentage of keys that determines the majority, 64 is floor(64*N/100).
   , vcPolicyID       :: !CurrencySymbol
   -- ^ The policy id of the vesting token.
   , vcTokenName      :: !TokenName
@@ -159,7 +160,7 @@ validator :: Plutus.Validator
 validator = Scripts.validatorScript (typedValidator vc)
   where
     vc = VestingContractParams
-      { vcMajorityParam = 3
+      { vcMajorityParam = 64
       , vcPolicyID      = "57fca08abbaddee36da742a839f7d83a7e1d2419f1507fcbf3916522"
       , vcTokenName     = "CHOC"
       , vcProviderPKH   = "06c35b3567b2d8f4c3a838c44050fa785c702d532467c8bfdb85046b"
@@ -172,7 +173,7 @@ validator = Scripts.validatorScript (typedValidator vc)
 
 -- Pick the locking interval
 lockInterval :: CustomDatumType -> Interval POSIXTime
-lockInterval datum' = Interval.interval (integerToPOSIX startingTime) (integerToPOSIX endingTime)
+lockInterval datum' = Interval.to (integerToPOSIX endingTime)
   where
     -- unix time at epoch 312
     timeTilRefEpoch :: Integer
@@ -222,6 +223,10 @@ listLength arr = countHowManyElements arr 0
   where
     countHowManyElements [] counter = counter
     countHowManyElements (_:xs) counter = countHowManyElements xs (counter + 1)
+
+-- optimal keys = floor(N*p/100) + 1
+calculateMajority :: Integer -> Integer -> Integer
+calculateMajority numberOfKeys majorityParam = divide (numberOfKeys * majorityParam) 100 + 1
 
 -------------------------------------------------------------------------------
 -- | mkValidator :: Data -> Datum -> Redeemer -> ScriptContext -> Bool
@@ -302,7 +307,13 @@ mkValidator vc datum redeemer context
           Just (Datum d)  -> Data.Maybe.fromMaybe datum (PlutusTx.fromBuiltinData d)
 
       checkMajoritySigners :: [PubKeyHash] -> Integer -> Bool
-      checkMajoritySigners [] counter = let numberOfVestors = listLength (cdtVestingGroupPKH datum) in if numberOfVestors <= vcMajorityParam vc then counter == numberOfVestors else counter >= vcMajorityParam vc
+      checkMajoritySigners [] counter = do
+        let numberOfVestors = listLength (cdtVestingGroupPKH datum)
+            majorityParam   = vcMajorityParam vc 
+            requiredSigners = calculateMajority numberOfVestors majorityParam in 
+          if numberOfVestors <= requiredSigners 
+          then counter == numberOfVestors 
+          else counter >= requiredSigners
       checkMajoritySigners (pkh:pkhs) !counter
         | txSignedBy (scriptContextTxInfo context) pkh = checkMajoritySigners pkhs (counter + 1)
         | otherwise = checkMajoritySigners pkhs counter
@@ -315,7 +326,8 @@ mkValidator vc datum redeemer context
         | otherwise = checkContTxOutForValue xs val
         where
           checkVal :: Bool
-          checkVal = Value.geq (txOutValue x) val -- This may need to be ==
+          checkVal = txOutValue x == val -- This may need to be ==
+          -- checkVal = Value.geq (txOutValue x) val -- This may need to be ==
 
       -- Search each TxOut for the correct address and value.
       checkTxOutForValueAtPKH :: [TxOut] -> PubKeyHash -> Value -> Bool
@@ -328,7 +340,8 @@ mkValidator vc datum redeemer context
           checkAddr = txOutAddress x == pubKeyHashAddress pkh
 
           checkVal :: Bool
-          checkVal = Value.geq (txOutValue x) val -- This may need to be ==
+          checkVal = txOutValue x == val -- This may need to be ==
+          -- checkVal = Value.geq (txOutValue x) val -- This may need to be ==
 
       -- Force a single script utxo input.
       checkForSingleScriptInput :: Bool
