@@ -160,7 +160,7 @@ validator :: Plutus.Validator
 validator = Scripts.validatorScript (typedValidator vc)
   where
     vc = VestingContractParams
-      { vcMajorityParam = 64
+      { vcMajorityParam = 50
       , vcPolicyID      = "57fca08abbaddee36da742a839f7d83a7e1d2419f1507fcbf3916522"
       , vcTokenName     = "CHOC"
       , vcProviderPKH   = "06c35b3567b2d8f4c3a838c44050fa785c702d532467c8bfdb85046b"
