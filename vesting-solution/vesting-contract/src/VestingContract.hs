@@ -129,24 +129,24 @@ instance Eq CustomDatumType where
 -- Some test data for the repl
 -- remove on production
 testData' :: CustomDatumType
-testData' = CustomDatumType { cdtVestingStage = 1
-                           , cdtVestingUserPKH = ""
-                           , cdtVestingGroupPKH = [""]
-                           , cdtVestingWeights = [1]
-                           , cdtTreasuryPKH = ""
-                           , cdtDeadlineParams = [5,5]
-                           , cdtRewardParams = [0,10]
-                           }
+testData' = CustomDatumType { cdtVestingStage    = 1
+                            , cdtVestingUserPKH  = ""
+                            , cdtVestingGroupPKH = [""]
+                            , cdtVestingWeights  = [1]
+                            , cdtTreasuryPKH     = ""
+                            , cdtDeadlineParams  = [5,5]
+                            , cdtRewardParams    = [0,10]
+                            }
 
 testData'' :: CustomDatumType
-testData'' = CustomDatumType  { cdtVestingStage = 2
-                              , cdtVestingUserPKH = ""
-                              , cdtVestingGroupPKH = [""]
-                              , cdtVestingWeights = [1]
-                              , cdtTreasuryPKH = ""
-                              , cdtDeadlineParams = [5,10]
-                              , cdtRewardParams = [0,10]
-                              }
+testData'' = CustomDatumType { cdtVestingStage    = 2
+                             , cdtVestingUserPKH  = ""
+                             , cdtVestingGroupPKH = [""]
+                             , cdtVestingWeights  = [1]
+                             , cdtTreasuryPKH     = ""
+                             , cdtDeadlineParams  = [5,10]
+                             , cdtRewardParams    = [0,10]
+                             }
 -------------------------------------------------------------------------------
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
@@ -402,7 +402,7 @@ instance Scripts.ValidatorTypes Typed where
 typedValidator :: VestingContractParams -> Scripts.TypedValidator Typed
 typedValidator vc = Scripts.mkTypedValidator @Typed
   ($$(PlutusTx.compile [|| mkValidator ||]) `PlutusTx.applyCode` PlutusTx.liftCode vc)
-  $$(PlutusTx.compile  [|| wrap        ||])
+   $$(PlutusTx.compile [|| wrap        ||])
     where
       wrap = Scripts.wrapValidator @CustomDatumType @CustomRedeemerType  -- @Datum @Redeemer
 
