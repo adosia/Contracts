@@ -66,10 +66,10 @@ import qualified Plutus.V1.Ledger.Ada      as Ada
 
 {- |
   Author   : The Ancient Kraken
-  Copyright: 2021
+  Copyright: 2022
   Version  : Rev 0
 
-  This is a vesting contract.
+  This is a vesting solution.
 -}
 
 -------------------------------------------------------------------------------
@@ -92,7 +92,6 @@ PlutusTx.makeLift ''VestingContractParams
 -------------------------------------------------------------------------------
 -- | Create the datum parameters data object.
 -------------------------------------------------------------------------------
-
 data CustomDatumType = CustomDatumType
   { cdtVestingStage    :: !Integer
   -- ^ The stage determines the deadline and reward.
@@ -123,6 +122,9 @@ instance Eq CustomDatumType where
            ( head (cdtDeadlineParams a) == head (cdtDeadlineParams b)) &&
            ( head (tail (cdtDeadlineParams a)) + head (cdtDeadlineParams a) == head (tail (cdtDeadlineParams b)))
 
+
+-- Some test data for the repl
+-- remove on production
 testData' :: CustomDatumType
 testData' = CustomDatumType { cdtVestingStage = 1
                            , cdtVestingUserPKH = ""
@@ -145,7 +147,9 @@ testData'' = CustomDatumType  { cdtVestingStage = 2
 -------------------------------------------------------------------------------
 
 newtype CustomRedeemerType = CustomRedeemerType
-  { crtAction :: Integer }
+  { crtAction :: Integer
+  -- ^ This determines which endpoint to use.
+  }
     deriving stock (Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''CustomRedeemerType
@@ -154,8 +158,8 @@ PlutusTx.makeLift ''CustomRedeemerType
 
 -------------------------------------------------------------------------------
 -- | Define The Token Sale Parameters Here
+-- This must be changed per compile.
 -------------------------------------------------------------------------------
-
 validator :: Plutus.Validator
 validator = Scripts.validatorScript (typedValidator vc)
   where
@@ -170,8 +174,7 @@ validator = Scripts.validatorScript (typedValidator vc)
 -------------------------------------------------------------------------------
 -- | Deadline and Reward Functions
 -------------------------------------------------------------------------------
-
--- Pick the locking interval
+-- Pick the locking interval, assume negative inf to endingTime.
 lockInterval :: CustomDatumType -> Interval POSIXTime
 lockInterval datum' = Interval.to (integerToPOSIX endingTime)
   where
@@ -192,9 +195,11 @@ lockInterval datum' = Interval.to (integerToPOSIX endingTime)
     lockedPeriod :: Integer
     lockedPeriod = head $ cdtDeadlineParams datum'
 
+    -- starting Time is just the reference plus how many days in nanoseconds.
     startingTime :: Integer
     startingTime = timeTilRefEpoch + startDay*lengthOfDay
 
+    -- ending time is just starting time plus the vesting period.
     endingTime :: Integer
     endingTime = startingTime + lockedPeriod*lengthOfDay
 
@@ -214,19 +219,22 @@ rewardFunction datum' = v0 - t * deltaV
     deltaV :: Integer
     deltaV = head $ cdtRewardParams datum'
 
+    -- time increment
     t :: Integer
     t = cdtVestingStage datum'
 
--- calculate the length of list
+-- wrapper for countHowManyElements
 listLength :: [a] -> Integer
 listLength arr = countHowManyElements arr 0
   where
+    -- calculate the length of a list
+    countHowManyElements :: [a] -> Integer -> Integer
     countHowManyElements [] counter = counter
     countHowManyElements (_:xs) counter = countHowManyElements xs (counter + 1)
 
--- optimal keys = floor(N*p/100)
+-- optimal keys = floor(N*p/100), signle vestors must be the majority.
 calculateMajority :: Integer -> Integer -> Integer
-calculateMajority numberOfKeys majorityParam = divide (numberOfKeys * majorityParam) 100
+calculateMajority numberOfKeys majorityParam = if numberOfKeys == 1 then 1 else divide (numberOfKeys * majorityParam) 100
 
 -------------------------------------------------------------------------------
 -- | mkValidator :: Data -> Datum -> Redeemer -> ScriptContext -> Bool
@@ -246,14 +254,13 @@ mkValidator vc datum redeemer context
         | action == 1 = closeVestment
         | action == 2 = petitionVote
         | otherwise   = traceIfFalse "Error: checkRedeemer Failure" True -- Set True For BYPASS
-
-      action :: Integer
-      action = crtAction redeemer
+          where
+            action :: Integer
+            action = crtAction redeemer
 
       -------------------------------------------------------------------------
       -- | On-chain endpoints 
       -------------------------------------------------------------------------
-
       -- retrieve funds from the contract
       retrieveFunds :: Bool
       retrieveFunds = do
@@ -284,15 +291,17 @@ mkValidator vc datum redeemer context
         ; let b = traceIfFalse "Provider Not Being Paid"     $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf $ vcProviderProfit vc)
         ;         traceIfFalse "Error: petitionVote Failure" $ all (==(True :: Bool)) [a,b]
         }
+
       -------------------------------------------------------------------------
       -- | Helpers
       -------------------------------------------------------------------------
-
+      -- the value in the utxo being validated
       validatedValue :: Value
       validatedValue = case findOwnInput context of
           Nothing    -> traceError "No Input to Validate"
           Just input -> txOutValue $ txInInfoResolved input
 
+      -- the value the vestor will retrieve
       retrieveValue :: Value
       retrieveValue = Value.singleton (vcPolicyID vc) (vcTokenName vc) (rewardFunction datum)
 
@@ -305,6 +314,7 @@ mkValidator vc datum redeemer context
           Nothing         -> datum
           Just (Datum d)  -> Data.Maybe.fromMaybe datum (PlutusTx.fromBuiltinData d)
 
+      -- calculate if the correct amount of signers have signed the tx.
       checkMajoritySigners :: [PubKeyHash] -> Integer -> Bool
       checkMajoritySigners [] counter = do
         let numberOfVestors = listLength (cdtVestingGroupPKH datum)
@@ -325,8 +335,7 @@ mkValidator vc datum redeemer context
         | otherwise = checkContTxOutForValue xs val
         where
           checkVal :: Bool
-          checkVal = txOutValue x == val -- This may need to be ==
-          -- checkVal = Value.geq (txOutValue x) val -- This may need to be ==
+          checkVal = txOutValue x == val
 
       -- Search each TxOut for the correct address and value.
       checkTxOutForValueAtPKH :: [TxOut] -> PubKeyHash -> Value -> Bool
@@ -339,8 +348,7 @@ mkValidator vc datum redeemer context
           checkAddr = txOutAddress x == pubKeyHashAddress pkh
 
           checkVal :: Bool
-          checkVal = txOutValue x == val -- This may need to be ==
-          -- checkVal = Value.geq (txOutValue x) val -- This may need to be ==
+          checkVal = txOutValue x == val
 
       -- Force a single script utxo input.
       checkForSingleScriptInput :: Bool
@@ -364,7 +372,6 @@ mkValidator vc datum redeemer context
 -------------------------------------------------------------------------------
 -- | This determines the data type for Datum and Redeemer.
 -------------------------------------------------------------------------------
-
 data Typed
 instance Scripts.ValidatorTypes Typed where
   type instance DatumType    Typed = CustomDatumType
@@ -374,7 +381,6 @@ instance Scripts.ValidatorTypes Typed where
 -------------------------------------------------------------------------------
 -- | Now we need to compile the Typed Validator.
 -------------------------------------------------------------------------------
-
 typedValidator :: VestingContractParams -> Scripts.TypedValidator Typed
 typedValidator vc = Scripts.mkTypedValidator @Typed
   ($$(PlutusTx.compile [|| mkValidator ||]) `PlutusTx.applyCode` PlutusTx.liftCode vc)
@@ -386,7 +392,6 @@ typedValidator vc = Scripts.mkTypedValidator @Typed
 -------------------------------------------------------------------------------
 -- | The code below is required for the plutus script compile.
 -------------------------------------------------------------------------------
-
 script :: Plutus.Script
 script = Plutus.unValidatorScript validator
 
