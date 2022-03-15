@@ -37,7 +37,7 @@ module VestingContract
   , lockInterval
   , rewardFunction
   , listLength
-  , calculateMajority
+  , calculateWeight
   ) where
 
 import           Cardano.Api.Shelley       (PlutusScript (..), PlutusScriptV1)
@@ -99,6 +99,8 @@ data CustomDatumType = CustomDatumType
   -- ^ The public key hash of the receiver.
   , cdtVestingGroupPKH :: ![PubKeyHash]
   -- ^ A list public key hashes of everyone who is vesting with the contract.
+  , cdtVestingWeights  :: ![Integer]
+  -- ^ A list voting weights of everyone who is vesting with the contract.
   , cdtTreasuryPKH     :: !PubKeyHash
   -- ^ The public key hash of the treasury wallet.
   , cdtDeadlineParams  :: ![Integer]
@@ -117,6 +119,7 @@ instance Eq CustomDatumType where
   a == b = ( cdtVestingStage a + 1 == cdtVestingStage    b) &&
            ( cdtVestingUserPKH   a == cdtVestingUserPKH  b) &&
            ( cdtVestingGroupPKH  a == cdtVestingGroupPKH b) &&
+           ( cdtVestingWeights   a == cdtVestingWeights  b) &&
            ( cdtTreasuryPKH      a == cdtTreasuryPKH     b) &&
            ( cdtRewardParams     a == cdtRewardParams    b) &&
            ( head (cdtDeadlineParams a) == head (cdtDeadlineParams b)) &&
@@ -126,22 +129,24 @@ instance Eq CustomDatumType where
 -- Some test data for the repl
 -- remove on production
 testData' :: CustomDatumType
-testData' = CustomDatumType { cdtVestingStage = 1
-                           , cdtVestingUserPKH = ""
-                           , cdtVestingGroupPKH = [""]
-                           , cdtTreasuryPKH = ""
-                           , cdtDeadlineParams = [5,5]
-                           , cdtRewardParams = [0,10]
-                           }
+testData' = CustomDatumType { cdtVestingStage    = 1
+                            , cdtVestingUserPKH  = ""
+                            , cdtVestingGroupPKH = [""]
+                            , cdtVestingWeights  = [1]
+                            , cdtTreasuryPKH     = ""
+                            , cdtDeadlineParams  = [5,5]
+                            , cdtRewardParams    = [0,10]
+                            }
 
 testData'' :: CustomDatumType
-testData'' = CustomDatumType  { cdtVestingStage = 2
-                              , cdtVestingUserPKH = ""
-                              , cdtVestingGroupPKH = [""]
-                              , cdtTreasuryPKH = ""
-                              , cdtDeadlineParams = [5,10]
-                              , cdtRewardParams = [0,10]
-                              }
+testData'' = CustomDatumType { cdtVestingStage    = 2
+                             , cdtVestingUserPKH  = ""
+                             , cdtVestingGroupPKH = [""]
+                             , cdtVestingWeights  = [1]
+                             , cdtTreasuryPKH     = ""
+                             , cdtDeadlineParams  = [5,10]
+                             , cdtRewardParams    = [0,10]
+                             }
 -------------------------------------------------------------------------------
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
@@ -164,10 +169,10 @@ validator :: Plutus.Validator
 validator = Scripts.validatorScript (typedValidator vc)
   where
     vc = VestingContractParams
-      { vcMajorityParam = 50
-      , vcPolicyID      = "57fca08abbaddee36da742a839f7d83a7e1d2419f1507fcbf3916522"
-      , vcTokenName     = "CHOC"
-      , vcProviderPKH   = "06c35b3567b2d8f4c3a838c44050fa785c702d532467c8bfdb85046b"
+      { vcMajorityParam  = 50
+      , vcPolicyID       = "57fca08abbaddee36da742a839f7d83a7e1d2419f1507fcbf3916522"
+      , vcTokenName      = "CHOC"
+      , vcProviderPKH    = "06c35b3567b2d8f4c3a838c44050fa785c702d532467c8bfdb85046b"
       , vcProviderProfit = 1000000
       }
 
@@ -232,9 +237,29 @@ listLength arr = countHowManyElements arr 0
     countHowManyElements [] counter = counter
     countHowManyElements (_:xs) counter = countHowManyElements xs (counter + 1)
 
--- optimal keys = floor(N*p/100), signle vestors must be the majority.
-calculateMajority :: Integer -> Integer -> Integer
-calculateMajority numberOfKeys majorityParam = if numberOfKeys == 1 then 1 else divide (numberOfKeys * majorityParam) 100
+-- calculate the total voting weight from all signers of a transaction
+calculateWeight :: [PubKeyHash] -> [PubKeyHash] -> [Integer] -> Integer -> Integer
+calculateWeight [] _ _ counter = counter
+calculateWeight (signer:signers) vestingGroup vestingWeights counter
+  | checkSigneeInGroup signer vestingGroup = calculateWeight signers vestingGroup vestingWeights (counter + signerWeight)
+  | otherwise = calculateWeight signers vestingGroup vestingWeights counter
+    where
+      checkSigneeInGroup :: PubKeyHash -> [PubKeyHash] -> Bool
+      checkSigneeInGroup _ [] = False
+      checkSigneeInGroup pkh (vestor:vestors)
+        | pkh == vestor = True
+        | otherwise     = checkSigneeInGroup pkh vestors
+
+      getSignerWeight :: PubKeyHash -> [PubKeyHash] -> [Integer] -> Integer
+      getSignerWeight _ [] [] = 0
+      getSignerWeight _ _ []  = 0
+      getSignerWeight _ [] _  = 0
+      getSignerWeight pkh (vestor:vestors) (weight:weights)
+        | pkh == vestor = weight
+        | otherwise = getSignerWeight pkh vestors weights
+      
+      signerWeight :: Integer
+      signerWeight = getSignerWeight signer vestingGroup vestingWeights
 
 -------------------------------------------------------------------------------
 -- | mkValidator :: Data -> Datum -> Redeemer -> ScriptContext -> Bool
@@ -287,7 +312,7 @@ mkValidator vc datum redeemer context
       -- multi sig vote off chain heavy
       petitionVote :: Bool
       petitionVote = do
-        { let a = traceIfFalse "Not Enough Signers"          $ checkMajoritySigners (cdtVestingGroupPKH datum) 0
+        { let a = traceIfFalse "Not Enough Signers"          checkVoteWeight
         ; let b = traceIfFalse "Provider Not Being Paid"     $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf $ vcProviderProfit vc)
         ;         traceIfFalse "Error: petitionVote Failure" $ all (==(True :: Bool)) [a,b]
         }
@@ -314,18 +339,11 @@ mkValidator vc datum redeemer context
           Nothing         -> datum
           Just (Datum d)  -> Data.Maybe.fromMaybe datum (PlutusTx.fromBuiltinData d)
 
-      -- calculate if the correct amount of signers have signed the tx.
-      checkMajoritySigners :: [PubKeyHash] -> Integer -> Bool
-      checkMajoritySigners [] counter = do
-        let numberOfVestors = listLength (cdtVestingGroupPKH datum)
-            majorityParam   = vcMajorityParam vc 
-            requiredSigners = calculateMajority numberOfVestors majorityParam in 
-          if numberOfVestors <= requiredSigners 
-          then counter == numberOfVestors 
-          else counter >= requiredSigners
-      checkMajoritySigners (pkh:pkhs) !counter
-        | txSignedBy (scriptContextTxInfo context) pkh = checkMajoritySigners pkhs (counter + 1)
-        | otherwise                                    = checkMajoritySigners pkhs counter
+      -- Check if the total voting weight is greater than the majority threshold parameter.
+      checkVoteWeight :: Bool
+      checkVoteWeight = txWeight >= vcMajorityParam vc
+        where
+          txWeight = calculateWeight (txInfoSignatories $ scriptContextTxInfo context) (cdtVestingGroupPKH datum) (cdtVestingWeights datum) 0
 
       -- | Search each TxOut for the value.
       checkContTxOutForValue :: [TxOut] -> Value -> Bool
@@ -384,7 +402,7 @@ instance Scripts.ValidatorTypes Typed where
 typedValidator :: VestingContractParams -> Scripts.TypedValidator Typed
 typedValidator vc = Scripts.mkTypedValidator @Typed
   ($$(PlutusTx.compile [|| mkValidator ||]) `PlutusTx.applyCode` PlutusTx.liftCode vc)
-  $$(PlutusTx.compile  [|| wrap        ||])
+   $$(PlutusTx.compile [|| wrap        ||])
     where
       wrap = Scripts.wrapValidator @CustomDatumType @CustomRedeemerType  -- @Datum @Redeemer
 
