@@ -1,0 +1,1 @@
+/home/cardano/Documents/Work/full-node-wallet/node/db-testnet/node.socket
