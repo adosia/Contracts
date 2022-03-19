@@ -30,7 +30,7 @@ echo "Vestor OUTPUT: "${vestor_address_out}
 
 sc_min_value=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/retrieved_vestment_datum.json \
+    --tx-out-datum-embed-file data/retrieved_vestment_datum1.json \
     --tx-out="${script_address} ${sc_asset}" | tr -dc '0-9')
 sc_address_out="${script_address} + ${sc_min_value} + ${sc_asset}"
 echo "Script OUTPUT: "${sc_address_out}
@@ -87,7 +87,7 @@ FEE=$(${cli} transaction build \
     --tx-out ${provider_address}+1000000 \
     --tx-out="${vestor_address_out}" \
     --tx-out="${sc_address_out}" \
-    --tx-out-datum-embed-file data/retrieved_vestment_datum.json \
+    --tx-out-datum-embed-file data/retrieved_vestment_datum1.json \
     --required-signer wallets/vestor-wallet/payment.skey \
     --tx-in-script-file ${script_path} \
     --testnet-magic 1097911063)
@@ -97,7 +97,7 @@ IFS=' ' read -ra FEE <<< "${VALUE[1]}"
 FEE=${FEE[1]}
 echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
-exit
+# exit
 #
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \

@@ -70,7 +70,7 @@ FEE=$(${cli} transaction build \
     --tx-in ${issuer_tx_in} \
     --tx-in-collateral ${collateral_tx_in} \
     --tx-in ${script_tx_in}  \
-    --tx-in-datum-file data/create_vestment_datum.json \
+    --tx-in-datum-file data/retrieved_vestment_datum3.json \
     --tx-in-redeemer-file data/close_redeemer.json \
     --tx-out="${issuer_address_out}" \
     --tx-in-script-file ${script_path} \

@@ -34,13 +34,13 @@ def create_weights(number):
 if __name__ == "__main__":
     print("Calculate subset sum")
 
-    N = 5
+    N = 15
     weights = create_weights(N)
     print(weights)
     number = len(weights)
-    total = 65
+    total = 75
     print("\nThreshold Vote",total)
-
+    print("Maximum: {}".format(pow(2, number)))
     everything = []
     for n in range(0,pow(2, number)):
         mapping = baseQ(n, 2)
@@ -56,7 +56,8 @@ if __name__ == "__main__":
                 if voter not in everything:
                     everything.append(voter)
                 # break
-    print("\nPotential Outcomes")       
+    print("\nPotential Outcomes")
+    print(len(everything))
     for state in everything:
         print(state)
     
