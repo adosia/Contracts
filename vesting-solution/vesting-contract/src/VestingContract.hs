@@ -32,8 +32,6 @@ module VestingContract
   , Schema
   , contract
   , CustomDatumType
-  , testData'
-  , testData''
   , lockInterval
   , rewardFunction
   , listLength
@@ -125,32 +123,9 @@ instance Eq CustomDatumType where
            ( head (cdtDeadlineParams a) == head (cdtDeadlineParams b)) &&
            ( head (tail (cdtDeadlineParams a)) + head (cdtDeadlineParams a) == head (tail (cdtDeadlineParams b)))
 
-
--- Some test data for the repl
--- remove on production
-testData' :: CustomDatumType
-testData' = CustomDatumType { cdtVestingStage    = 1
-                            , cdtVestingUserPKH  = ""
-                            , cdtVestingGroupPKH = [""]
-                            , cdtVestingWeights  = [1]
-                            , cdtTreasuryPKH     = ""
-                            , cdtDeadlineParams  = [5,5]
-                            , cdtRewardParams    = [0,10]
-                            }
-
-testData'' :: CustomDatumType
-testData'' = CustomDatumType { cdtVestingStage    = 2
-                             , cdtVestingUserPKH  = ""
-                             , cdtVestingGroupPKH = [""]
-                             , cdtVestingWeights  = [1]
-                             , cdtTreasuryPKH     = ""
-                             , cdtDeadlineParams  = [5,10]
-                             , cdtRewardParams    = [0,10]
-                             }
 -------------------------------------------------------------------------------
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
-
 newtype CustomRedeemerType = CustomRedeemerType
   { crtAction :: Integer
   -- ^ This determines which endpoint to use.
@@ -278,7 +253,7 @@ mkValidator vc datum redeemer context
         | action == 0 = retrieveFunds
         | action == 1 = closeVestment
         | action == 2 = petitionVote
-        | otherwise   = traceIfFalse "Error: checkRedeemer Failure" True -- Set True For BYPASS
+        | otherwise   = traceIfFalse "Error: checkRedeemer Failure" False -- Set True For BYPASS
           where
             action :: Integer
             action = crtAction redeemer
@@ -366,7 +341,7 @@ mkValidator vc datum redeemer context
           checkAddr = txOutAddress x == pubKeyHashAddress pkh
 
           checkVal :: Bool
-          checkVal = txOutValue x == val
+          checkVal = Value.geq (txOutValue x) val
 
       -- Force a single script utxo input.
       checkForSingleScriptInput :: Bool
@@ -411,13 +386,13 @@ typedValidator vc = Scripts.mkTypedValidator @Typed
 -- | The code below is required for the plutus script compile.
 -------------------------------------------------------------------------------
 script :: Plutus.Script
-script = Plutus.unValidatorScript validator
+script =  Plutus.unValidatorScript validator
 
 vestingContractScriptShortBs :: SBS.ShortByteString
-vestingContractScriptShortBs = SBS.toShort . LBS.toStrict $ serialise script
+vestingContractScriptShortBs =  SBS.toShort . LBS.toStrict $ serialise script
 
 vestingContractScript :: PlutusScript PlutusScriptV1
-vestingContractScript = PlutusScriptSerialised vestingContractScriptShortBs
+vestingContractScript =  PlutusScriptSerialised vestingContractScriptShortBs
 
 
 -------------------------------------------------------------------------------

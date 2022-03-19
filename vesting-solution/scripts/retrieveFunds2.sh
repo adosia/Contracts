@@ -23,14 +23,14 @@ sc_asset="8000 ${policy_id}.${token_hex}"
 # minimum ada to get in
 vestor_min_value=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/create_vestment_datum.json \
+    --tx-out-datum-embed-file data/retrieved_vestment_datum1.json \
     --tx-out="${vestor_address} ${vestor_asset}" | tr -dc '0-9')
 vestor_address_out="${vestor_address} + ${vestor_min_value} + ${vestor_asset}"
 echo "Vestor OUTPUT: "${vestor_address_out}
 
 sc_min_value=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/retrieved_vestment_datum.json \
+    --tx-out-datum-embed-file data/retrieved_vestment_datum2.json \
     --tx-out="${script_address} ${sc_asset}" | tr -dc '0-9')
 sc_address_out="${script_address} + ${sc_min_value} + ${sc_asset}"
 echo "Script OUTPUT: "${sc_address_out}
@@ -80,9 +80,9 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${vestor_address} \
     --tx-in ${vestor_tx_in} \
-    --tx-in-collateral c630404afc060fb2695c08881dde6f215a42afbff4aaaf1a23586738e8b32bec#0 \
+    --tx-in-collateral 82744398dcf197bdcb14e1b0f97ad2920b0c4262c2920749189491fac630e61b#0 \
     --tx-in ${script_tx_in}  \
-    --tx-in-datum-file data/retrieved_vestment_datum.json \
+    --tx-in-datum-file data/retrieved_vestment_datum1.json \
     --tx-in-redeemer-file data/retrieve_redeemer.json \
     --tx-out="${vestor_address} + ${vestor_min_value} + 1000 ${policy_id}.${token_hex}" \
     --tx-out ${provider_address}+1000000 \

@@ -18,21 +18,22 @@ token_name="CHOC"
 amount=10000
 token_hex=$(echo -n ${token_name} | xxd -ps)
 vestor_asset="1000 ${policy_id}.${token_hex}"
-sc_asset="7000 ${policy_id}.${token_hex}"
+sc_asset="1000 ${policy_id}.${token_hex}"
 
 # minimum ada to get in
 vestor_min_value=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/create_vestment_datum.json \
+    --tx-out-datum-embed-file data/retrieved_vestment_datum2.json \
     --tx-out="${vestor_address} ${vestor_asset}" | tr -dc '0-9')
 vestor_address_out="${vestor_address} + ${vestor_min_value} + ${vestor_asset}"
 echo "Vestor OUTPUT: "${vestor_address_out}
 
 sc_min_value=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/retrieved_vestment_datum.json \
+    --tx-out-datum-embed-file data/retrieved_vestment_datum3.json \
     --tx-out="${script_address} ${sc_asset}" | tr -dc '0-9')
-sc_address_out="${script_address} + ${sc_min_value} + ${sc_asset}"
+sc_address_out="${script_address} + ${sc_min_value}"
+# + ${sc_asset}"
 echo "Script OUTPUT: "${sc_address_out}
 
 # exit
@@ -70,7 +71,7 @@ TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/script_ut
 script_tx_in=${TXIN::-8}
 
 currentSlot=$(${cli} query tip --testnet-magic 1097911063 | jq .slot)
-
+txid=$(${cli} transaction txid --tx-body-file tmp/tx.draft)
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
     --alonzo-era \
@@ -80,11 +81,11 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${vestor_address} \
     --tx-in ${vestor_tx_in} \
-    --tx-in-collateral 006574a9e0e4a73ac18bbd91bb52fd01cfbc4c62b00c06a014c6f9a1ff51abff#0 \
+    --tx-in-collateral="${txid}#0" \
     --tx-in ${script_tx_in}  \
     --tx-in-datum-file data/retrieved_vestment_datum2.json \
     --tx-in-redeemer-file data/retrieve_redeemer.json \
-    --tx-out="${vestor_address} + ${vestor_min_value} + 2000 ${policy_id}.${token_hex}" \
+    --tx-out="${vestor_address} + ${vestor_min_value} + 9000 ${policy_id}.${token_hex}" \
     --tx-out ${provider_address}+1000000 \
     --tx-out="${vestor_address_out}" \
     --tx-out="${sc_address_out}" \
@@ -99,7 +100,7 @@ IFS=' ' read -ra FEE <<< "${VALUE[1]}"
 FEE=${FEE[1]}
 echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
-# exit
+# exit    
 #
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
