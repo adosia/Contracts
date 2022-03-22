@@ -14,9 +14,10 @@ vestor_address=$(cat wallets/vestor-wallet/payment.addr)
 # Token Information
 policy_id="57fca08abbaddee36da742a839f7d83a7e1d2419f1507fcbf3916522"
 token_name="CHOC"
-amount=10000
+amount=2000
 token_hex=$(echo -n ${token_name} | xxd -ps)
 sc_asset="${amount} ${policy_id}.${token_hex}"
+change_asset="6000 ${policy_id}.${token_hex}"
 
 # minimum ada to get in
 sc_min_value=$(${cli} transaction calculate-min-required-utxo \
@@ -24,6 +25,7 @@ sc_min_value=$(${cli} transaction calculate-min-required-utxo \
     --tx-out-datum-embed-file data/create_vestment_datum.json \
     --tx-out="${script_address} ${sc_asset}" | tr -dc '0-9')
 sc_address_out="${script_address} + ${sc_min_value} + ${sc_asset}"
+change_address_out="${issuer_address} + ${sc_min_value} + ${change_asset}"
 echo "Script OUTPUT: "${sc_address_out}
 
 # exit
@@ -50,6 +52,7 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${issuer_address} \
     --tx-in ${issuer_tx_in} \
+    --tx-out="${change_address_out}" \
     --tx-out="${sc_address_out}" \
     --tx-out-datum-embed-file data/create_vestment_datum.json \
     --testnet-magic 1097911063)
@@ -68,7 +71,7 @@ ${cli} transaction sign \
     --out-file tmp/tx.signed \
     --testnet-magic 1097911063
 #
-# exit
+exit
 #
 echo -e "\033[0;36m Submitting Tx \033[0m"
 ${cli} transaction submit \
