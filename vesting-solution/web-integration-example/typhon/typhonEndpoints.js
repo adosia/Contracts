@@ -134,12 +134,12 @@ let txStatus = async (transactionId) => {
 
 
 // Retrieve Sale Endpoint
-let retrieveVestment = (scriptUTxO, retrieveOutput, vestorPKH, submit=false) => {
-    return plutusTx([scriptUTxO], retrieveOutput, [vestorPKH], submit)
+let retrieveVestment = (scriptUTxO, retrieveOutput, walletPKH, submit=false) => {
+    return plutusTx([scriptUTxO], retrieveOutput, [walletPKH], submit)
 };
 
 // Create Sale Endpoint
-let sendADA = async (scriptAddr, tokens, datumCbor, submit=false) => {
+let sendADA = async (scriptAddr, tokens, datumCbor, metadata, submit=false) => {
     const paymentTransactionResponse = await window.cardano.typhon.paymentTransaction({
         outputs: [
             {
@@ -148,6 +148,7 @@ let sendADA = async (scriptAddr, tokens, datumCbor, submit=false) => {
                 plutusDataCbor: datumCbor,
             },
         ],
+        auxiliaryDataCbor: metadata,
         submit: submit
     });
     return paymentTransactionResponse;

@@ -17,7 +17,7 @@ token_name="CHOC"
 amount=2000
 token_hex=$(echo -n ${token_name} | xxd -ps)
 sc_asset="${amount} ${policy_id}.${token_hex}"
-change_asset="6000 ${policy_id}.${token_hex}"
+change_asset="8000 ${policy_id}.${token_hex}"
 
 # minimum ada to get in
 sc_min_value=$(${cli} transaction calculate-min-required-utxo \
@@ -26,6 +26,7 @@ sc_min_value=$(${cli} transaction calculate-min-required-utxo \
     --tx-out="${script_address} ${sc_asset}" | tr -dc '0-9')
 sc_address_out="${script_address} + ${sc_min_value} + ${sc_asset}"
 change_address_out="${issuer_address} + ${sc_min_value} + ${change_asset}"
+return_address_out="${issuer_address} + ${sc_min_value} + 100 48664e8d76f2b15606677bd117a3eac9929c378ac547ed295518dfd5.74426967546f6b656e4e616d653032"
 echo "Script OUTPUT: "${sc_address_out}
 
 # exit
@@ -52,6 +53,7 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${issuer_address} \
     --tx-in ${issuer_tx_in} \
+    --tx-out="${return_address_out}" \
     --tx-out="${change_address_out}" \
     --tx-out="${sc_address_out}" \
     --tx-out-datum-embed-file data/create_vestment_datum.json \
@@ -71,7 +73,7 @@ ${cli} transaction sign \
     --out-file tmp/tx.signed \
     --testnet-magic 1097911063
 #
-exit
+# exit
 #
 echo -e "\033[0;36m Submitting Tx \033[0m"
 ${cli} transaction submit \

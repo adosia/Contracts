@@ -32,10 +32,6 @@ module VestingContract
   , Schema
   , contract
   , CustomDatumType
-  , lockInterval
-  , rewardFunction
-  , listLength
-  , calculateWeight
   ) where
 
 import           Cardano.Api.Shelley       (PlutusScript (..), PlutusScriptV1)
@@ -151,90 +147,7 @@ validator = Scripts.validatorScript (typedValidator vc)
       , vcProviderProfit = 1000000
       }
 
--------------------------------------------------------------------------------
--- | Deadline and Reward Functions
--------------------------------------------------------------------------------
--- Pick the locking interval, assume negative inf to endingTime.
-lockInterval :: CustomDatumType -> Interval POSIXTime
-lockInterval datum' = Interval.to (integerToPOSIX endingTime)
-  where
-    -- unix time at epoch 312
-    timeTilRefEpoch :: Integer
-    -- timeTilRefEpoch = 1640987100000  -- mainnet
-    timeTilRefEpoch = 1640895900000  -- testnet
 
-    -- time unit
-    lengthOfDay :: Integer
-    lengthOfDay = 1000*60*60*24
-
-    -- pick some day to start
-    startDay :: Integer
-    startDay = head $ tail $ cdtDeadlineParams datum'
-
-    -- pick some number of days for the vesting period
-    lockedPeriod :: Integer
-    lockedPeriod = head $ cdtDeadlineParams datum'
-
-    -- starting Time is just the reference plus how many days in nanoseconds.
-    startingTime :: Integer
-    startingTime = timeTilRefEpoch + startDay*lengthOfDay
-
-    -- ending time is just starting time plus the vesting period.
-    endingTime :: Integer
-    endingTime = startingTime + lockedPeriod*lengthOfDay
-
-    -- Number of milliseconds from unix time start
-    integerToPOSIX :: Integer -> POSIXTime
-    integerToPOSIX x = Time.fromMilliSeconds $ Time.DiffMilliSeconds x
-
--- Assume Linear reward
-rewardFunction :: CustomDatumType -> Integer
-rewardFunction datum' = v0 - t * deltaV
-  where
-    -- starting amount
-    v0 :: Integer
-    v0 = head $ tail $ cdtRewardParams datum'
-
-    -- amount reduced every period
-    deltaV :: Integer
-    deltaV = head $ cdtRewardParams datum'
-
-    -- time increment
-    t :: Integer
-    t = cdtVestingStage datum'
-
--- wrapper for countHowManyElements
-listLength :: [a] -> Integer
-listLength arr = countHowManyElements arr 0
-  where
-    -- calculate the length of a list
-    countHowManyElements :: [a] -> Integer -> Integer
-    countHowManyElements [] counter = counter
-    countHowManyElements (_:xs) counter = countHowManyElements xs (counter + 1)
-
--- calculate the total voting weight from all signers of a transaction
-calculateWeight :: [PubKeyHash] -> [PubKeyHash] -> [Integer] -> Integer -> Integer
-calculateWeight [] _ _ counter = counter
-calculateWeight (signer:signers) vestingGroup vestingWeights counter
-  | checkSigneeInGroup signer vestingGroup = calculateWeight signers vestingGroup vestingWeights (counter + signerWeight)
-  | otherwise = calculateWeight signers vestingGroup vestingWeights counter
-    where
-      checkSigneeInGroup :: PubKeyHash -> [PubKeyHash] -> Bool
-      checkSigneeInGroup _ [] = False
-      checkSigneeInGroup pkh (vestor:vestors)
-        | pkh == vestor = True
-        | otherwise     = checkSigneeInGroup pkh vestors
-
-      getSignerWeight :: PubKeyHash -> [PubKeyHash] -> [Integer] -> Integer
-      getSignerWeight _ [] [] = 0
-      getSignerWeight _ _ []  = 0
-      getSignerWeight _ [] _  = 0
-      getSignerWeight pkh (vestor:vestors) (weight:weights)
-        | pkh == vestor = weight
-        | otherwise = getSignerWeight pkh vestors weights
-      
-      signerWeight :: Integer
-      signerWeight = getSignerWeight signer vestingGroup vestingWeights
 
 -------------------------------------------------------------------------------
 -- | mkValidator :: Data -> Datum -> Redeemer -> ScriptContext -> Bool
@@ -265,13 +178,13 @@ mkValidator vc datum redeemer context
       retrieveFunds :: Bool
       retrieveFunds = do
         { let a = traceIfFalse "Single Script Only"           checkForSingleScriptInput
-        ; let b = traceIfFalse "Incorrect Signer"             $ txSignedBy (scriptContextTxInfo context) (cdtVestingUserPKH datum)
-        ; let c = traceIfFalse "The Value Is Still Locked"    $ not $ overlaps (lockInterval datum) (txInfoValidRange $ scriptContextTxInfo context)
-        ; let d = traceIfFalse "Incorrect Incoming Datum"     $ datum == embeddedDatum (getContinuingOutputs context)
-        ; let e = traceIfFalse "Value Not Return To Script"   $ checkContTxOutForValue (getContinuingOutputs context) (validatedValue - retrieveValue)
-        ; let f = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (cdtVestingUserPKH datum) retrieveValue
+        ; let b = traceIfFalse "Incorrect Signer"             $ txSignedBy info vestingUser
+        ; let c = traceIfFalse "The Value Is Still Locked"    $ not $ overlaps lockedInterval validityRange
+        ; let d = traceIfFalse "Incorrect Incoming Datum"     $ datum == embeddedDatum cont
+        ; let e = traceIfFalse "Value Not Return To Script"   $ checkContTxOutForValue cont (validatedValue - retrieveValue)
+        ; let f = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH outs vestingUser retrieveValue
         ; let g = traceIfFalse "No Funds Left"                $ Value.valueOf validatedValue (vcPolicyID vc) (vcTokenName vc) > (0 :: Integer)
-        ; let h = traceIfFalse "Provider Not Being Paid"      $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf $ vcProviderProfit vc)
+        ; let h = traceIfFalse "Provider Not Being Paid"      $ checkTxOutForValueAtPKH outs (vcProviderPKH vc) profitValue
         ;         traceIfFalse "Error: retrieveFunds Failure" $ all (==(True :: Bool)) [a,b,c,d,e,f,g,h]
         }
 
@@ -279,7 +192,7 @@ mkValidator vc datum redeemer context
       closeVestment :: Bool
       closeVestment = do
         { let a = traceIfFalse "Single Script Only"           checkForSingleScriptInput
-        ; let b = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (cdtTreasuryPKH datum) validatedValue
+        ; let b = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH outs (cdtTreasuryPKH datum) validatedValue
         ; let c = traceIfFalse "Funds Are Left"               $ Value.valueOf validatedValue (vcPolicyID vc) (vcTokenName vc) == (0 :: Integer)
         ;         traceIfFalse "Error: closeVestment Failure" $ all (==(True :: Bool)) [a,b,c]
         }
@@ -288,13 +201,108 @@ mkValidator vc datum redeemer context
       petitionVote :: Bool
       petitionVote = do
         { let a = traceIfFalse "Not Enough Signers"          checkVoteWeight
-        ; let b = traceIfFalse "Provider Not Being Paid"     $ checkTxOutForValueAtPKH (txInfoOutputs $ scriptContextTxInfo context) (vcProviderPKH vc) (Ada.lovelaceValueOf $ vcProviderProfit vc)
+        ; let b = traceIfFalse "Provider Not Being Paid"     $ checkTxOutForValueAtPKH outs (vcProviderPKH vc) profitValue
         ;         traceIfFalse "Error: petitionVote Failure" $ all (==(True :: Bool)) [a,b]
         }
+      -------------------------------------------------------------------------------
+      -- | Deadline and Reward Functions
+      -------------------------------------------------------------------------------
+      -- Pick the locking interval, assume negative inf to endingTime.
+      lockInterval :: CustomDatumType -> Interval POSIXTime
+      lockInterval datum' = Interval.to (integerToPOSIX endingTime)
+        where
+          -- unix time at epoch 312
+          timeTilRefEpoch :: Integer
+          -- timeTilRefEpoch = 1640987100000  -- mainnet
+          timeTilRefEpoch = 1640895900000  -- testnet
 
+          -- time unit
+          lengthOfDay :: Integer
+          lengthOfDay = 1000*60*60*24
+
+          -- pick some day to start
+          startDay :: Integer
+          startDay = head $ tail $ cdtDeadlineParams datum'
+
+          -- pick some number of days for the vesting period
+          lockedPeriod :: Integer
+          lockedPeriod = head $ cdtDeadlineParams datum'
+
+          -- starting Time is just the reference plus how many days in nanoseconds.
+          startingTime :: Integer
+          startingTime = timeTilRefEpoch + startDay*lengthOfDay
+
+          -- ending time is just starting time plus the vesting period.
+          endingTime :: Integer
+          endingTime = startingTime + lockedPeriod*lengthOfDay
+
+          -- Number of milliseconds from unix time start
+          integerToPOSIX :: Integer -> POSIXTime
+          integerToPOSIX x = Time.fromMilliSeconds $ Time.DiffMilliSeconds x
+
+      -- Assume Linear reward
+      rewardFunction :: CustomDatumType -> Integer
+      rewardFunction datum' = v0 - t * deltaV
+        where
+          -- starting amount
+          v0 :: Integer
+          v0 = head $ tail $ cdtRewardParams datum'
+
+          -- amount reduced every period
+          deltaV :: Integer
+          deltaV = head $ cdtRewardParams datum'
+
+          -- time increment
+          t :: Integer
+          t = cdtVestingStage datum'
+
+      -- calculate the total voting weight from all signers of a transaction
+      calculateWeight :: [PubKeyHash] -> [PubKeyHash] -> [Integer] -> Integer -> Integer
+      calculateWeight [] _ _ counter = counter
+      calculateWeight (signer:signers) vestingGroup vestingWeights counter
+        | checkSigneeInGroup signer vestingGroup = calculateWeight signers vestingGroup vestingWeights (counter + signerWeight)
+        | otherwise = calculateWeight signers vestingGroup vestingWeights counter
+          where
+            checkSigneeInGroup :: PubKeyHash -> [PubKeyHash] -> Bool
+            checkSigneeInGroup _ [] = False
+            checkSigneeInGroup pkh (vestor:vestors)
+              | pkh == vestor = True
+              | otherwise     = checkSigneeInGroup pkh vestors
+
+            getSignerWeight :: PubKeyHash -> [PubKeyHash] -> [Integer] -> Integer
+            getSignerWeight _ [] [] = 0
+            getSignerWeight _ _ []  = 0
+            getSignerWeight _ [] _  = 0
+            getSignerWeight pkh (vestor:vestors) (weight:weights)
+              | pkh == vestor = weight
+              | otherwise = getSignerWeight pkh vestors weights
+            
+            signerWeight :: Integer
+            signerWeight = getSignerWeight signer vestingGroup vestingWeights
       -------------------------------------------------------------------------
       -- | Helpers
       -------------------------------------------------------------------------
+      info :: TxInfo
+      info = scriptContextTxInfo context
+
+      cont :: [TxOut]
+      cont = getContinuingOutputs context
+
+      outs :: [TxOut]
+      outs = txInfoOutputs info
+      
+      lockedInterval :: Interval POSIXTime
+      lockedInterval = lockInterval datum
+      
+      validityRange :: POSIXTimeRange
+      validityRange = txInfoValidRange info
+
+      vestingUser :: PubKeyHash
+      vestingUser = cdtVestingUserPKH datum
+
+      profitValue :: Value
+      profitValue = Ada.lovelaceValueOf $ vcProviderProfit vc
+
       -- the value in the utxo being validated
       validatedValue :: Value
       validatedValue = case findOwnInput context of
@@ -310,7 +318,7 @@ mkValidator vc datum redeemer context
       embeddedDatum [] = datum
       embeddedDatum (x:xs) = case txOutDatumHash x of
         Nothing -> embeddedDatum xs
-        Just dh -> case findDatum dh $ scriptContextTxInfo context of
+        Just dh -> case findDatum dh $ info of
           Nothing         -> datum
           Just (Datum d)  -> Data.Maybe.fromMaybe datum (PlutusTx.fromBuiltinData d)
 
@@ -318,7 +326,7 @@ mkValidator vc datum redeemer context
       checkVoteWeight :: Bool
       checkVoteWeight = txWeight >= vcMajorityParam vc
         where
-          txWeight = calculateWeight (txInfoSignatories $ scriptContextTxInfo context) (cdtVestingGroupPKH datum) (cdtVestingWeights datum) 0
+          txWeight = calculateWeight (txInfoSignatories $ info) (cdtVestingGroupPKH datum) (cdtVestingWeights datum) 0
 
       -- | Search each TxOut for the value.
       checkContTxOutForValue :: [TxOut] -> Value -> Bool
@@ -341,11 +349,11 @@ mkValidator vc datum redeemer context
           checkAddr = txOutAddress x == pubKeyHashAddress pkh
 
           checkVal :: Bool
-          checkVal = Value.geq (txOutValue x) val
+          checkVal = txOutValue x == val
 
       -- Force a single script utxo input.
       checkForSingleScriptInput :: Bool
-      checkForSingleScriptInput = loopInputs (txInfoInputs $ scriptContextTxInfo context) 0
+      checkForSingleScriptInput = loopInputs (txInfoInputs $ info) 0
         where
           loopInputs :: [TxInInfo] -> Integer -> Bool
           loopInputs []     counter  = counter == 1
