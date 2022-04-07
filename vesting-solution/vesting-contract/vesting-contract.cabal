@@ -45,6 +45,9 @@ library
   hs-source-dirs:       src
 
   exposed-modules:      VestingContract
+                        DataTypes
+                        HelperFuncs
+                        CheckFuncs
 
   build-depends:        bytestring
                       , cardano-api
