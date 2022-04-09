@@ -35,8 +35,6 @@ module CheckFuncs
 
 import           Ledger
 import           PlutusTx.Prelude
-
-
 import HelperFuncs
 import DataTypes
 -------------------------------------------------------------------------
@@ -75,7 +73,19 @@ checkForNScriptInputs txInputs nMatch' = traceIfFalse "Too many Script Inputs." 
         Nothing -> do counter <= nMatch && loopInputs xs counter nMatch
         Just _  -> do counter <= nMatch && loopInputs xs (counter + 1) nMatch
 
+-- Calculate teh voting weight
 checkVoteWeight :: TxInfo -> CustomDatumType -> Integer -> Bool
 checkVoteWeight info datum majorityParam = txWeight >= majorityParam
   where
-    txWeight = calculateWeight (txInfoSignatories info) (cdtVestingGroupPKH datum) (cdtVestingWeights datum) 0
+    txWeight :: Integer
+    txWeight = calculateWeight txSigners vestingGroup vestingWeights 0
+
+    txSigners :: [PubKeyHash]
+    txSigners = txInfoSignatories info
+
+    vestingGroup :: [PubKeyHash]
+    vestingGroup = cdtVestingGroupPKH datum
+
+    vestingWeights :: [Integer]
+    vestingWeights = cdtVestingWeights datum
+

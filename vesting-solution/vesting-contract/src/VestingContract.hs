@@ -40,7 +40,7 @@ import           Codec.Serialise           ( serialise )
 
 import qualified Data.ByteString.Lazy      as LBS
 import qualified Data.ByteString.Short     as SBS
-import qualified Data.Maybe
+import           Data.Maybe
 
 import           Playground.Contract
 import           Plutus.Contract
@@ -58,6 +58,7 @@ import qualified Plutus.V1.Ledger.Ada      as Ada
 import HelperFuncs
 import DataTypes
 import CheckFuncs
+
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
@@ -95,7 +96,6 @@ validator = Scripts.validatorScript (typedValidator vc)
       , vcProviderPKH    = "06c35b3567b2d8f4c3a838c44050fa785c702d532467c8bfdb85046b"
       , vcProviderProfit = 1000000
       }
-
 -------------------------------------------------------------------------------
 -- | mkValidator :: Data -> Datum -> Redeemer -> ScriptContext -> Bool
 -------------------------------------------------------------------------------
@@ -127,10 +127,10 @@ mkValidator vc datum redeemer context
         { let a = traceIfFalse "Single Script Only"           $ checkForNScriptInputs txInputs (1 :: Integer)
         ; let b = traceIfFalse "Incorrect Signer"             $ txSignedBy info vestingUser
         ; let c = traceIfFalse "The Value Is Still Locked"    $ not $ overlaps lockedInterval validityRange
-        ; let d = traceIfFalse "Incorrect Incoming Datum"     $ datum == embeddedDatum contTxOutputs
+        ; let d = traceIfFalse "Incorrect Incoming Datum"     $ datum == embeddedDatum datum info contTxOutputs
         ; let e = traceIfFalse "Value Not Return To Script"   $ checkContTxOutForValue contTxOutputs (validatedValue - retrieveValue)
         ; let f = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH txOutputs vestingUser retrieveValue
-        ; let g = traceIfFalse "No Funds Left"                $ Value.valueOf validatedValue policyId tokenName > (0 :: Integer)
+        ; let g = traceIfFalse "No Funds Left To Vest"        $ Value.valueOf validatedValue policyId tokenName > (0 :: Integer)
         ; let h = traceIfFalse "Provider Not Being Paid"      $ checkTxOutForValueAtPKH txOutputs providerPKH profitValue
         ;         traceIfFalse "Error: retrieveFunds Failure" $ all (==(True :: Bool)) [a,b,c,d,e,f,g,h]
         }
@@ -140,7 +140,7 @@ mkValidator vc datum redeemer context
       closeVestment = do
         { let a = traceIfFalse "Single Script Only"           $ checkForNScriptInputs txInputs (1 :: Integer)
         ; let b = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH txOutputs treasuryPKH validatedValue
-        ; let c = traceIfFalse "Funds Are Left"               $ Value.valueOf validatedValue policyId tokenName == (0 :: Integer)
+        ; let c = traceIfFalse "Funds Are Left To Vest"       $ Value.valueOf validatedValue policyId tokenName == (0 :: Integer)
         ;         traceIfFalse "Error: closeVestment Failure" $ all (==(True :: Bool)) [a,b,c]
         }
 
@@ -198,18 +198,9 @@ mkValidator vc datum redeemer context
 
       retrieveValue :: Value
       retrieveValue = Value.singleton policyId tokenName (rewardFunction datum)
-
-      embeddedDatum :: [TxOut] -> CustomDatumType
-      embeddedDatum [] = datum
-      embeddedDatum (x:xs) = case txOutDatumHash x of
-        Nothing -> embeddedDatum xs
-        Just dh -> case findDatum dh info of
-          Nothing         -> datum
-          Just (Datum d)  -> Data.Maybe.fromMaybe datum (PlutusTx.fromBuiltinData d)
 -------------------------------------------------------------------------
 -- | End of Validator.
 -------------------------------------------------------------------------
-
 -------------------------------------------------------------------------------
 -- | This determines the data type for Datum and Redeemer.
 -------------------------------------------------------------------------------
@@ -217,7 +208,6 @@ data Typed
 instance Scripts.ValidatorTypes Typed where
   type instance DatumType    Typed = CustomDatumType
   type instance RedeemerType Typed = CustomRedeemerType
-
 
 -------------------------------------------------------------------------------
 -- | Now we need to compile the Typed Validator.
@@ -228,7 +218,6 @@ typedValidator vc = Scripts.mkTypedValidator @Typed
    $$(PlutusTx.compile [|| wrap        ||])
     where
       wrap = Scripts.wrapValidator @CustomDatumType @CustomRedeemerType  -- @Datum @Redeemer
-
 
 -------------------------------------------------------------------------------
 -- | The code below is required for the plutus script compile.
@@ -242,12 +231,10 @@ vestingContractScriptShortBs =  SBS.toShort . LBS.toStrict $ serialise script
 vestingContractScript :: PlutusScript PlutusScriptV1
 vestingContractScript =  PlutusScriptSerialised vestingContractScriptShortBs
 
-
 -------------------------------------------------------------------------------
 -- | Off Chain
 -------------------------------------------------------------------------------
-type Schema =
-  Endpoint "" ()
+type Schema = Endpoint "" ()
 
 contract :: AsContractError e => Contract () Schema e ()
 contract = selectList [] >> contract
