@@ -33,8 +33,8 @@ module DataTypes
   , cdtVestingStage
   , cdtVestingUserPKH
   , cdtTreasuryPKH
-  , cdtVestingGroupPKH
-  , cdtVestingWeights
+  , cdtVotingGroupPKHs
+  , cdtVotingWeights
   , CustomRedeemerType
   , crtAction
   ) where
@@ -55,9 +55,9 @@ data CustomDatumType = CustomDatumType
   -- ^ The stage determines the deadline and reward.
   , cdtVestingUserPKH  :: !PubKeyHash
   -- ^ The public key hash of the receiver.
-  , cdtVestingGroupPKH :: ![PubKeyHash]
-  -- ^ A list public key hashes of everyone who is vesting with the contract.
-  , cdtVestingWeights  :: ![Integer]
+  , cdtVotingGroupPKHs :: ![PubKeyHash]
+  -- ^ A list public key hashes of everyone who is voting with the contract.
+  , cdtVotingWeights   :: ![Integer]
   -- ^ A list voting weights of everyone who is vesting with the contract.
   , cdtTreasuryPKH     :: !PubKeyHash
   -- ^ The public key hash of the treasury wallet.
@@ -76,8 +76,8 @@ instance Eq CustomDatumType where
   {-# INLINABLE (==) #-}
   a == b = ( cdtVestingStage a + 1 == cdtVestingStage    b) &&
            ( cdtVestingUserPKH   a == cdtVestingUserPKH  b) &&
-           ( cdtVestingGroupPKH  a == cdtVestingGroupPKH b) &&
-           ( cdtVestingWeights   a == cdtVestingWeights  b) &&
+           ( cdtVotingGroupPKHs  a == cdtVotingGroupPKHs b) &&
+           ( cdtVotingWeights    a == cdtVotingWeights   b) &&
            ( cdtTreasuryPKH      a == cdtTreasuryPKH     b) &&
            ( cdtRewardParams     a == cdtRewardParams    b) &&
            ( head (cdtDeadlineParams a) == head (cdtDeadlineParams b)) &&

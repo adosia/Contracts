@@ -84,8 +84,8 @@ checkVoteWeight info datum majorityParam = txWeight >= majorityParam
     txSigners = txInfoSignatories info
 
     vestingGroup :: [PubKeyHash]
-    vestingGroup = cdtVestingGroupPKH datum
+    vestingGroup = cdtVotingGroupPKHs datum
 
     vestingWeights :: [Integer]
-    vestingWeights = cdtVestingWeights datum
+    vestingWeights = cdtVotingWeights datum
 

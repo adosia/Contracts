@@ -126,7 +126,7 @@ mkValidator vc datum redeemer context
       retrieveFunds = do
         { let a = traceIfFalse "Single Script Only"           $ checkForNScriptInputs txInputs (1 :: Integer)
         ; let b = traceIfFalse "Incorrect Signer"             $ txSignedBy info vestingUser
-        ; let c = traceIfFalse "The Value Is Still Locked"    $ not $ overlaps lockedInterval validityRange
+        ; let c = traceIfFalse "The Value Is Still Locked"    $ not $ overlaps lockedInterval validityInterval
         ; let d = traceIfFalse "Incorrect Incoming Datum"     $ datum == embeddedDatum datum info contTxOutputs
         ; let e = traceIfFalse "Value Not Return To Script"   $ checkContTxOutForValue contTxOutputs (validatedValue - retrieveValue)
         ; let f = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH txOutputs vestingUser retrieveValue
@@ -170,8 +170,8 @@ mkValidator vc datum redeemer context
       lockedInterval :: Interval POSIXTime
       lockedInterval = lockInterval datum
       
-      validityRange :: POSIXTimeRange
-      validityRange = txInfoValidRange info
+      validityInterval :: POSIXTimeRange
+      validityInterval = txInfoValidRange info
 
       vestingUser :: PubKeyHash
       vestingUser = cdtVestingUserPKH datum

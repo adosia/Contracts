@@ -105,9 +105,9 @@ rewardFunction datum = v0 - t * deltaV
 -- calculate the total voting weight from all signers of a transaction
 calculateWeight :: [PubKeyHash] -> [PubKeyHash] -> [Integer] -> Integer -> Integer
 calculateWeight [] _ _ counter = counter
-calculateWeight (signer:signers) vestingGroup vestingWeights counter
-  | checkSigneeInGroup signer vestingGroup = calculateWeight signers vestingGroup vestingWeights (counter + signerWeight)
-  | otherwise                              = calculateWeight signers vestingGroup vestingWeights counter
+calculateWeight (signer:signers) votingGroup votingWeights counter
+  | checkSigneeInGroup signer votingGroup = calculateWeight signers votingGroup votingWeights (counter + signerWeight)
+  | otherwise                              = calculateWeight signers votingGroup votingWeights counter
     where
       checkSigneeInGroup :: PubKeyHash -> [PubKeyHash] -> Bool
       checkSigneeInGroup _ [] = False
@@ -124,4 +124,4 @@ calculateWeight (signer:signers) vestingGroup vestingWeights counter
         | otherwise     = getSignerWeight pkh vestors weights
       
       signerWeight :: Integer
-      signerWeight = getSignerWeight signer vestingGroup vestingWeights
+      signerWeight = getSignerWeight signer votingGroup votingWeights
