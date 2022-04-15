@@ -25,16 +25,15 @@
 {-# OPTIONS_GHC -fobject-code                 #-}
 {-# OPTIONS_GHC -fno-specialise               #-}
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
-
 module CheckFuncs
   ( checkContTxOutForValue
   , checkTxOutForValueAtPKH
   , checkForNScriptInputs
   , checkVoteWeight
   ) where
-
 import           Ledger
 import           PlutusTx.Prelude
+import qualified Plutus.V1.Ledger.Value    as Value
 import HelperFuncs
 import DataTypes
 -------------------------------------------------------------------------
@@ -61,7 +60,7 @@ checkTxOutForValueAtPKH (x:xs) pkh val
     checkAddr = txOutAddress x == pubKeyHashAddress pkh
 
     checkVal :: Bool
-    checkVal = txOutValue x == val
+    checkVal = Value.geq (txOutValue x) val
 
 -- Force a N script utxo inputs.
 checkForNScriptInputs :: [TxInInfo] -> Integer -> Bool

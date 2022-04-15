@@ -14,7 +14,7 @@ vestor_address=$(cat wallets/vestor-wallet/payment.addr)
 # Token Information
 policy_id="57fca08abbaddee36da742a839f7d83a7e1d2419f1507fcbf3916522"
 token_name="CHOC"
-amount=10000
+amount=7001
 token_hex=$(echo -n ${token_name} | xxd -ps)
 sc_asset="${amount} ${policy_id}.${token_hex}"
 
@@ -24,6 +24,7 @@ sc_min_value=$(${cli} transaction calculate-min-required-utxo \
     --tx-out-datum-embed-file data/create_vestment_datum.json \
     --tx-out="${issuer_address} ${sc_asset}" | tr -dc '0-9')
 issuer_address_out="${issuer_address} + ${sc_min_value}"
+change_address_out="${issuer_address} + ${sc_min_value} + ${sc_asset}"
 echo "Issuer OUTPUT: "${issuer_address_out}
 
 # exit
@@ -68,11 +69,12 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${issuer_address} \
     --tx-in ${issuer_tx_in} \
-    --tx-in-collateral ${collateral_tx_in} \
+    --tx-in-collateral 0c7e6f21d99b27b3c5ea587ab5848a1a73987250951d1e33fa08989d31109159#0 \
     --tx-in ${script_tx_in}  \
-    --tx-in-datum-file data/retrieved_vestment_datum3.json \
+    --tx-in-datum-file data/retrieved_vestment_datum2.json \
     --tx-in-redeemer-file data/close_redeemer.json \
     --tx-out="${issuer_address_out}" \
+    --tx-out="${change_address_out}" \
     --tx-in-script-file ${script_path} \
     --testnet-magic 1097911063)
 

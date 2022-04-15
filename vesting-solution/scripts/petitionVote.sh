@@ -18,6 +18,8 @@ policy_id="57fca08abbaddee36da742a839f7d83a7e1d2419f1507fcbf3916522"
 token_name="CHOC"
 amount=2000
 token_hex=$(echo -n ${token_name} | xxd -ps)
+
+# assets going in and out
 sc_asset="${amount} ${policy_id}.${token_hex}"
 
 # minimum ada to get in
@@ -26,7 +28,6 @@ min_value=$(${cli} transaction calculate-min-required-utxo \
     --tx-out-datum-embed-file data/create_vestment_datum.json \
     --tx-out="${issuer_address} ${sc_asset}" | tr -dc '0-9')
 issuer_address_out="${issuer_address} + ${min_value} + ${sc_asset}"
-return_address_out="${issuer_address} + ${min_value} + 100 48664e8d76f2b15606677bd117a3eac9929c378ac547ed295518dfd5.74426967546f6b656e4e616d653032"
 echo "Issuer OUTPUT: "${issuer_address_out}
 
 # exit
@@ -71,13 +72,13 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${vestor_address} \
     --tx-in ${vestor_tx_in} \
-    --tx-in-collateral 0df5a154c4783e2a94d1b4d760e65c98ba3a5058d817f44301f7c7dd616fb90a#0 \
+    --tx-in-collateral ${collateral_tx_in} \
     --tx-in ${script_tx_in}  \
     --tx-in-datum-file data/create_vestment_datum.json \
     --tx-in-redeemer-file data/vote_redeemer.json \
     --tx-out ${provider_address}+1000000 \
     --tx-out="${issuer_address_out}" \
-    --required-signer wallets/vestor-wallet/payment.skey \
+    --required-signer wallets/issuer-wallet/payment.skey \
     --tx-in-script-file ${script_path} \
     --testnet-magic 1097911063)
 
@@ -92,6 +93,7 @@ echo -e "\033[1;32m Fee: \033[0m" $FEE
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
     --signing-key-file wallets/vestor-wallet/payment.skey \
+    --signing-key-file wallets/issuer-wallet/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
     --testnet-magic 1097911063
@@ -108,7 +110,7 @@ ${cli} transaction sign \
 #     --out-file tmp/tx.signed \
 #     --testnet-magic 1097911063
 #
-exit
+# exit
 #
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \

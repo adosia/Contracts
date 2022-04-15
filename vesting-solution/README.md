@@ -9,22 +9,9 @@ cabal run vesting-contract
 echo "done"
 ```
 
-```bash
-# Quick Build
-cabal build -w ghc-8.10.4
-echo "done"
-```
 ## Requirements
 
 ```
-cardano-cli --version
-# cardano-cli 1.33.0 - linux-x86_64 - ghc-8.10
-# git rev 814df2c146f5d56f8c35a681fe75e85b905aed5d
-
-cardano-node --version
-# cardano-node 1.33.0 - linux-x86_64 - ghc-8.10
-# git rev 814df2c146f5d56f8c35a681fe75e85b905aed5d
-
 cabal --version
 # cabal-install version 3.4.0.0
 # compiled using version 3.4.0.0 of the Cabal library

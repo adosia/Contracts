@@ -25,7 +25,6 @@
 {-# OPTIONS_GHC -fobject-code                 #-}
 {-# OPTIONS_GHC -fno-specialise               #-}
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
-
 module DataTypes
   ( CustomDatumType
   , cdtRewardParams
@@ -35,18 +34,11 @@ module DataTypes
   , cdtTreasuryPKH
   , cdtVotingGroupPKHs
   , cdtVotingWeights
-  , CustomRedeemerType
-  , crtAction
   ) where
-
-
 import           Playground.Contract
-
 import           Ledger
-
 import qualified PlutusTx
 import           PlutusTx.Prelude
-
 -------------------------------------------------------------------------------
 -- | Create the datum parameters data object.
 -------------------------------------------------------------------------------
@@ -70,7 +62,6 @@ data CustomDatumType = CustomDatumType
     deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''CustomDatumType
 PlutusTx.makeLift ''CustomDatumType
-
 -- old is a; new is b
 instance Eq CustomDatumType where
   {-# INLINABLE (==) #-}
@@ -82,16 +73,3 @@ instance Eq CustomDatumType where
            ( cdtRewardParams     a == cdtRewardParams    b) &&
            ( head (cdtDeadlineParams a) == head (cdtDeadlineParams b)) &&
            ( head (tail (cdtDeadlineParams a)) + head (cdtDeadlineParams a) == head (tail (cdtDeadlineParams b)))
-
-
--------------------------------------------------------------------------------
--- | Create the redeemer parameters data object.
--------------------------------------------------------------------------------
-newtype CustomRedeemerType = CustomRedeemerType
-  { crtAction :: Integer
-  -- ^ This determines which endpoint to use.
-  }
-    deriving stock    (Show, Generic)
-    deriving anyclass (FromJSON, ToJSON, ToSchema)
-PlutusTx.unstableMakeIsData ''CustomRedeemerType
-PlutusTx.makeLift ''CustomRedeemerType

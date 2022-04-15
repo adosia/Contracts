@@ -25,25 +25,19 @@
 {-# OPTIONS_GHC -fobject-code                 #-}
 {-# OPTIONS_GHC -fno-specialise               #-}
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
-
 module HelperFuncs
   ( lockInterval
   , rewardFunction
   , calculateWeight
   , embeddedDatum
   ) where
-
-
 import           Ledger
 import           PlutusTx.Prelude
 import qualified Data.Maybe
 import qualified PlutusTx
-
 import qualified Plutus.V1.Ledger.Interval as Interval
 import qualified Plutus.V1.Ledger.Time     as Time
-
 import DataTypes
-
 -- find the incoming embedded datum or return the passed in datum
 embeddedDatum :: CustomDatumType -> TxInfo -> [TxOut] -> CustomDatumType
 embeddedDatum datum _ [] = datum
