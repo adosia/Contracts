@@ -157,9 +157,6 @@ mkValidator vc datum redeemer context =
 
     retrieveValue :: Value
     retrieveValue = Value.singleton policyId tokenName (rewardFunction datum)
--------------------------------------------------------------------------
--- | End of Validator.
--------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 -- | This determines the data type for Datum and Redeemer.
 -------------------------------------------------------------------------------
