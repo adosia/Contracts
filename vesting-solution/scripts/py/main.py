@@ -34,11 +34,12 @@ def create_weights(number):
 if __name__ == "__main__":
     print("Calculate subset sum")
 
-    N = 15
-    weights = create_weights(N)
-    print(weights)
+    N = 5
+    # weights = create_weights(N)
+    # print(weights)
+    weights = [23,17,8,34,18]
     number = len(weights)
-    total = 75
+    total = 65
     print("\nThreshold Vote",total)
     print("Maximum: {}".format(pow(2, number)))
     everything = []
@@ -54,6 +55,7 @@ if __name__ == "__main__":
                 voter.append(index)
             if check >= total:
                 if voter not in everything:
+                    print(voter)
                     everything.append(voter)
                 # break
     print("\nPotential Outcomes")
