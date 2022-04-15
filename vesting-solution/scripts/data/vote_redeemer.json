@@ -1,8 +1,4 @@
 {
-  "constructor": 0,
-  "fields": [
-    {
-      "int": 2
-    }
-  ]
+  "constructor": 2,
+  "fields": []
 }
