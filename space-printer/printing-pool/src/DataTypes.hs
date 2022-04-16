@@ -40,11 +40,18 @@ module DataTypes
   , siOfferPrice
   , siPrinterPKH
   , siShipTime
+  , PrinterRegistrationType
+  , prPrinterPKH
+  , prPrinterInfo
+  , prUUIDHash
+  , findOtherPKH
   ) where
 import           Ledger                    hiding ( singleton )
 import           Playground.Contract
 import qualified PlutusTx
 import           PlutusTx.Prelude
+import qualified Plutus.V1.Ledger.Contexts  as Contexts
+
 {- |
   Author   : The Ancient Kraken
   Copyright: 2021
@@ -129,3 +136,38 @@ instance Equiv PrintingInfoType ShippingInfoType where
             ( piOfferPrice  a == siOfferPrice  b) &&
             ( piPrinterPKH  a == siPrinterPKH  b) &&
             ( siShipTime    b  > (0 :: Integer) )
+
+-------------------------------------------------------------------------------
+-- | Printer Registration Object
+-------------------------------------------------------------------------------
+data PrinterRegistrationType = PrinterRegistrationType
+  { prPrinterPKH  :: !PubKeyHash
+  -- ^ The printer's payment public key hash.
+  , prPrinterInfo :: !BuiltinByteString
+  -- ^ A brief string of info / hash of info.
+  , prUUIDHash    :: !BuiltinByteString
+  -- ^ Hash Of UUID required for stake keys.
+  }
+    deriving stock (Show, Generic)
+    deriving anyclass (FromJSON, ToJSON, ToSchema)
+PlutusTx.unstableMakeIsData ''PrinterRegistrationType
+PlutusTx.makeLift ''PrinterRegistrationType
+
+instance Eq PrinterRegistrationType where
+  {-# INLINABLE (==) #-}
+  a == b = ( prPrinterPKH  a == prPrinterPKH  b) &&
+           ( prPrinterInfo a == prPrinterInfo b) &&
+           ( prUUIDHash    a == prUUIDHash    b)
+
+-------------------------------------------------------------------------------
+-- | Find the PubKeyHash of the other UTxO in the transaction.
+-------------------------------------------------------------------------------
+findOtherPKH :: TxInfo -> [TxInInfo]  -> Maybe PubKeyHash
+findOtherPKH _ [] = Nothing
+findOtherPKH info (x:xs)  = 
+  case txOutDatumHash $ txInInfoResolved x of
+    Nothing    -> findOtherPKH info xs
+    Just datumHash' -> case Contexts.findDatum datumHash' info of
+      Nothing             -> findOtherPKH info xs
+      Just (Datum datum') -> case PlutusTx.unsafeFromBuiltinData datum' of
+        (PrinterRegistrationType pkh' _ _) -> Just pkh'

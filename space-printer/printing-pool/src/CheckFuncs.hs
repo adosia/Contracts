@@ -30,6 +30,7 @@ module CheckFuncs
   , checkContTxOutForValue
   , checkTxOutForValueAtPKH
   , lockInterval
+  , isRegisteredPrinter
   ) where
 
 import           Ledger                    hiding ( singleton )
@@ -37,6 +38,7 @@ import           PlutusTx.Prelude
 import qualified Plutus.V1.Ledger.Value    as Value
 import qualified Plutus.V1.Ledger.Time     as Time
 import qualified Plutus.V1.Ledger.Interval as Interval
+import DataTypes
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
@@ -85,4 +87,8 @@ checkForNScriptInputs txInputs nMatch' = traceIfFalse "Too many Script Inputs." 
         Just _  -> do counter <= nMatch && loopInputs xs (counter + 1) nMatch
 
 
-
+isRegisteredPrinter :: TxInfo -> [TxInInfo] -> PubKeyHash -> Bool
+isRegisteredPrinter info txInputs pkh = 
+  case findOtherPKH info txInputs of
+    Nothing   -> False
+    Just pkh' -> pkh == pkh'

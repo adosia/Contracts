@@ -11,6 +11,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE NoImplicitPrelude     #-}
+{-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
@@ -44,6 +45,7 @@ import qualified PlutusTx
 import           PlutusTx.Prelude
 import           Plutus.Contract
 import qualified Plutus.V1.Ledger.Ada      as Ada
+import qualified Plutus.V1.Ledger.Value    as Value
 import qualified Plutus.V1.Ledger.Scripts  as Plutus
 import           DataTypes
 import           CheckFuncs
@@ -65,18 +67,31 @@ PlutusTx.makeLift ''ContractParams
 -------------------------------------------------------------------------------
 -- | Create the datum parameters data object.
 -------------------------------------------------------------------------------
-data CustomDatumType = PrintingPool PrintingPoolType | MakeOffer PrintingInfoType | CurrentlyPrinting PrintingInfoType | Shipping ShippingInfoType 
-PlutusTx.makeIsDataIndexed ''CustomDatumType [ ('PrintingPool,      0)
-                                             , ('MakeOffer,         1)
-                                             , ('CurrentlyPrinting, 2)
-                                             , ('Shipping,          3)
-                                                ]
+data CustomDatumType =  PrintingPool      PrintingPoolType |
+                        MakeOffer         PrintingInfoType |
+                        CurrentlyPrinting PrintingInfoType |
+                        Shipping          ShippingInfoType |
+                        Registration      PrinterRegistrationType
+PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ('PrintingPool,      0)
+                                              , ('MakeOffer,         1)
+                                              , ('CurrentlyPrinting, 2)
+                                              , ('Shipping,          3)
+                                              , ('Registration,      4)
+                                              ]
 PlutusTx.makeLift ''CustomDatumType
 
 -------------------------------------------------------------------------------
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
-data CustomRedeemerType = Remove | Update | Offer | Accept | Deny | Cancel | Return | Ship
+data CustomRedeemerType = Remove |
+                          Update |
+                          Offer  |
+                          Accept |
+                          Deny   |
+                          Cancel |
+                          Return |
+                          Ship   |
+                          Prove
 PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ('Remove, 0)
                                                 , ('Update, 1)
                                                 , ('Offer,  2)
@@ -84,7 +99,8 @@ PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ('Remove, 0)
                                                 , ('Deny,   4)
                                                 , ('Cancel, 5)
                                                 , ('Return, 6)
-                                                , ('Ship, 6)
+                                                , ('Ship,   7)
+                                                , ('Prove,  8)
                                                 ]
 PlutusTx.makeLift ''CustomRedeemerType
 
@@ -94,7 +110,7 @@ PlutusTx.makeLift ''CustomRedeemerType
 -------------------------------------------------------------------------------
 {-# INLINABLE mkValidator #-}
 mkValidator :: ContractParams -> CustomDatumType -> CustomRedeemerType -> ScriptContext -> Bool
-mkValidator _ datum redeemer context = 
+mkValidator _ datum redeemer context =
   case datum of
     (PrintingPool ppt) ->
       case redeemer of
@@ -104,7 +120,7 @@ mkValidator _ datum redeemer context =
           ; let c = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)                         -- single script input
           ; all (==(True :: Bool)) [a,b,c]
           }
-        Update -> 
+        Update ->
           case embeddedDatum continuingTxOutputs of
             (PrintingPool ppt') -> do
               { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (ppCustomerPKH ppt)                                   -- customer must sign it
@@ -120,14 +136,15 @@ mkValidator _ datum redeemer context =
               { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (piPrinterPKH pit)                         -- The printer must sign it
               ; let b = traceIfFalse "Incorrect Token Cont"   $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
               ; let c = traceIfFalse "Incorrect New State"    $ ppt === pit                                                -- printer must change the datum 
-              ; let d = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-              ; all (==(True :: Bool)) [a,b,c,d]
+              ; let d = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (2 :: Integer)              -- single script input
+              ; let e = traceIfFalse "Too Many Script Inputs" $ isRegisteredPrinter info txInputs (piPrinterPKH pit)           -- single script input
+              ; all (==(True :: Bool)) [a,b,c,d,e]
               }
             _ -> False
         _ -> False
     (MakeOffer pit) ->
       case redeemer of
-        Accept -> 
+        Accept ->
           case embeddedDatum continuingTxOutputs of
             (CurrentlyPrinting pit') -> do
               {
@@ -137,7 +154,7 @@ mkValidator _ datum redeemer context =
               ; let d = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
               ; all (==(True :: Bool)) [a,b,c,d]
               }
-            _ -> False 
+            _ -> False
         Deny   ->
           case embeddedDatum continuingTxOutputs of
             (PrintingPool ppt) -> do
@@ -188,11 +205,31 @@ mkValidator _ datum redeemer context =
       case redeemer of
         Accept -> do
           { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (siCustomerPKH sit)                                                  -- customer must sign it
-          ; let b = traceIfFalse "Incorrect Token payout" $ checkTxOutForValueAtPKH txOutputs (siCustomerPKH sit) validatingValue                -- customer gets token back
+          ; let b = traceIfFalse "Incorrect Token payout" $ checkTxOutForValueAtPKH txOutputs (siCustomerPKH sit) (validatingValue - priceValue (siOfferPrice sit))                -- customer gets token back
           ; let c = traceIfFalse "Incorrect Price payout" $ checkTxOutForValueAtPKH txOutputs (siPrinterPKH sit) (priceValue $ siOfferPrice sit) -- printer gets paid
           ; let d = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)                                        -- single script input
           ; all (==(True :: Bool)) [a,b,c,d]
           }
+        _ -> False
+    (Registration prt) ->
+      case redeemer of
+        Remove -> do
+          { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (prPrinterPKH prt)
+          ; let b = traceIfFalse "Incorrect Token payout" $ checkTxOutForValueAtPKH txOutputs (prPrinterPKH prt) validatingValue
+          ; let c = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)
+          ; all (==(True :: Bool)) [a,b,c]
+          }
+        Prove ->
+          case embeddedDatum continuingTxOutputs of
+            (Registration prt') -> do
+              { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (prPrinterPKH prt)
+              ; let b = traceIfFalse "Incorrect Token Cont"   $ checkContTxOutForValue continuingTxOutputs validatingValue
+              ; let c = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (2 :: Integer)
+              ; let d = traceIfFalse "Incorrect New State"    $ prt == prt'
+              ; let e = traceIfFalse "Not Enough ADA On UTXO" $ Value.valueOf validatingValue Ada.adaSymbol Ada.adaToken >= (10_000_000 :: Integer)
+              ; all (==(True :: Bool)) [a,b,c,d,e]
+              }
+            _ -> False
         _ -> False
   where
     info :: TxInfo
@@ -214,7 +251,7 @@ mkValidator _ datum redeemer context =
 
     priceValue :: Integer -> Value
     priceValue price = Ada.lovelaceValueOf price
-    
+
     embeddedDatum :: [TxOut] -> CustomDatumType
     embeddedDatum [] = datum
     embeddedDatum (x:xs) = case txOutDatumHash x of
