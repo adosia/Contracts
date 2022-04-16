@@ -130,6 +130,13 @@ data ShippingInfoType = ShippingInfoType
 PlutusTx.unstableMakeIsData ''ShippingInfoType
 PlutusTx.makeLift ''ShippingInfoType
 
+instance Eq ShippingInfoType where
+  {-# INLINABLE (==) #-}
+  a == b = ( siCustomerPKH a == siCustomerPKH b) &&
+           ( siOfferPrice  a == siOfferPrice  b) &&
+           ( siPrinterPKH  a == siPrinterPKH  b) &&
+           ( siShipTime    a == siShipTime    b)
+
 instance Equiv PrintingInfoType ShippingInfoType where
   {-# INLINABLE (===) #-}
   a === b = ( piCustomerPKH a == siCustomerPKH b) &&
