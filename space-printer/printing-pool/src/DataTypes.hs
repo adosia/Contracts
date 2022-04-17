@@ -108,6 +108,13 @@ instance Eq PrintingInfoType where
            ( piPrinterPKH  a == piPrinterPKH  b) &&
            ( piPrintTime   a == piPrintTime   b)
 
+instance Equiv PrintingInfoType PrintingInfoType where
+  {-# INLINABLE (===) #-}
+  a === b = ( piCustomerPKH a == piCustomerPKH b) &&
+            ( piOfferPrice  a == piOfferPrice  b) &&
+            ( piPrinterPKH  a == piPrinterPKH  b) &&
+            ( piPrintTime   a /= piPrintTime   b)
+
 instance Equiv PrintingPoolType PrintingInfoType where
   {-# INLINABLE (===) #-}
   a === b = ( ppCustomerPKH a == piCustomerPKH b) &&
