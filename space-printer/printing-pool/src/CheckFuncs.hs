@@ -86,7 +86,7 @@ checkForNScriptInputs txInputs nMatch' = traceIfFalse "Too many Script Inputs." 
         Nothing -> do counter <= nMatch && loopInputs xs counter nMatch
         Just _  -> do counter <= nMatch && loopInputs xs (counter + 1) nMatch
 
-
+-- check if the pkh inside the printer registration datum is equal to another pkh
 isRegisteredPrinter :: TxInfo -> [TxInInfo] -> PubKeyHash -> Bool
 isRegisteredPrinter info txInputs pkh = 
   case findOtherPKH info txInputs of
