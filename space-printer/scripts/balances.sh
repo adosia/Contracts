@@ -8,9 +8,11 @@ wallets="wallets"
 script_path="../printing-pool/printing_pool.plutus"
 
 script=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 1097911063)
-customer=$(cat ${wallets}/wallet-a/payment.addr)
-printer=$(cat ${wallets}/wallet-b/payment.addr)
+customer=$(cat wallets/customer/payment.addr)
+printer=$(cat wallets/printer/payment.addr)
 
+echo
+${cli} query tip --testnet-magic 1097911063 | jq
 
 echo
 echo "Script Address:" ${script}

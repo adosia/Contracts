@@ -5,15 +5,14 @@ set -e
 export CARDANO_NODE_SOCKET_PATH=$(cat pathToSocket.sh)
 cli=$(cat pathToCli.sh)
 
-wallets="wallets"
 script_path="../printing-pool/printing_pool.plutus"
 
 # Addresses
 script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 1097911063)
-# echo -e "Script: " $script_address
+echo -e "Script: " $script_address
 
-customer_address=$(cat ${wallets}/wallet-a/payment.addr)
-# echo -e "\nCustomer: " ${customer_address}
+customer_address=$(cat wallets/customer/payment.addr)
+echo -e "\nCustomer: " ${customer_address}
 
 # Define Asset to be printed here
 policy_id="16af70780a170994e8e5e575f4401b1d89bddf7d1a11d6264e0b0c85"
@@ -24,12 +23,15 @@ asset="1 ${policy_id}.${token_hex}"
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --alonzo-era \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/createJobDatum.json \
+    --tx-out-datum-embed-file data/datums/update_printing_pool_datum.json \
     --tx-out="$script_address $asset" | tr -dc '0-9')
-customer_job_to_be_updated="${script_address} + ${min_utxo} + ${asset}"
-
+offer_price=$(cat data/datums/create_printing_pool_datum.json | jq .fields[0].fields[1].int)
+offer_and_min=$((${min_utxo} + ${offer_price}))
+customer_job_to_be_updated="${script_address} + ${offer_and_min} + ${asset}"
 echo -e "\nRemoving A New Printing Job:\n" ${customer_job_to_be_updated}
-
+#
+# exit
+#
 echo -e "\033[0;36m Getting Customer UTxO Information  \033[0m"
 ${cli} query utxo \
     --testnet-magic 1097911063 \
@@ -75,11 +77,11 @@ FEE=$(${cli} transaction build \
     --tx-in ${HEXTXIN} \
     --tx-in-collateral ${COLLAT} \
     --tx-in ${SCRIPT_TXIN}  \
-    --tx-in-datum-file data/updateJobDatum.json \
-    --tx-in-redeemer-file data/updateJobRedeemer.json \
+    --tx-in-datum-file data/datums/update_printing_pool_datum.json \
+    --tx-in-redeemer-file data/redeemers/update_redeemer.json \
     --tx-out="${customer_job_to_be_updated}" \
-    --tx-out-datum-embed-file data/createJobDatum.json \
-    --required-signer ${wallets}/wallet-a/payment.skey \
+    --tx-out-datum-embed-file data/datums/create_printing_pool_datum.json \
+    --required-signer wallets/customer/payment.skey \
     --tx-in-script-file ${script_path} \
     --testnet-magic 1097911063)
 
@@ -87,15 +89,18 @@ IFS=':' read -ra VALUE <<< "$FEE"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
 FEE=${FEE[1]}
 echo -e "\033[1;32m Fee: \033[0m" $FEE
-
-
+#
+# exit
+#
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
-    --signing-key-file ${wallets}/wallet-a/payment.skey \
+    --signing-key-file wallets/customer/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
     --testnet-magic 1097911063
-
+#
+#
+#
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
     --testnet-magic 1097911063 \

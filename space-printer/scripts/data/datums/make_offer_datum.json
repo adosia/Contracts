@@ -1,0 +1,23 @@
+{
+    "constructor": 1,
+    "fields": [
+      {
+        "constructor": 0,
+        "fields": [
+          {
+            "bytes": "7aa2eb2ab925ceda499e056f301b2749f591f3f5aef7c850bd7735d3"
+          },
+          {
+            "int": 7000000
+          },
+          {
+            "bytes": "f2979446eb9a84e920765f14d73444bcdeaa3856ac58b97a955a7cf4"
+          },
+          {
+            "int": 1
+          }
+        ]
+      }
+    ]
+  }
+  
