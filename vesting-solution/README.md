@@ -1,6 +1,10 @@
 # Project Catalyst Fund 7 Vesting Contract
 
-Each contract is compiled specifically for a token vestment solution. This contract is designed for a service provider to handle all UI/UX and receive payment for their services. The scripts in this repository allow for basic cli/web functionality for testing purposes only. Please use the current release for the most stable version of the smart contract.
+Each contract is compiled specifically for a single token vestment solution. This allows a single contract to handle an entire vesting group where each utxo is a member of the vesting group. The logic allows for a nice seperation of assets and amazing customization of per vesting group basis. The contract provides the functionality for linear vesting with weighted multisig on-chain voting.
+
+This contract is designed for a service provider to handle all UI/UX and receive payment for their services. The scripts in this repository allow for basic cli/web functionality for testing purposes only. Please use the current release for the most stable version of the smart contract.
+
+The project is being released under Apache License 2.0 (Apache-2.0) so you can do what you like with this repo, as long as you include the required notices. If the contract gains traction post release then I will continue to contribute else it will end after the fund7 completion date, June 3rd 2022.
 
 ## Parameter Customization
 
@@ -94,12 +98,27 @@ The reward parameters allow for constant or linearly decreasing reward function.
 
 Similar to the deadline parameters, any non-linear behavior must be obtained with the voting endpoint.
 
-## Building
+## Clone The Repo
 
-The contract can be compiled with cabal. Please see the requirements section for recommended versions.
+The vesting solution is contained in the Adosia Contracts repository. Clone the repo and checkout the most recent tagged release. This will be the stable version of every contract in that repository. The repo is split into folders of different types of decentralized applications. Advance users wishing to clone just a sub-folder are suggested to follow [this simple guide](https://dev.to/kiwicopple/quick-tip-clone-a-single-folder-from-github-44h6) on performing a sparse checkout on the repository.
 
 ```bash
+git clone https://github.com/adosia/Contracts.git
+cd Contracts
+git fetch --all --recurse-submodules --tags
+git checkout $(curl -s https://api.github.com/repos/adosia/Contracts/releases/latest | jq -r .tag_name)
+cd vesting-solution
+```
+
+## Building
+
+The contract can be compiled with cabal. Please see the requirements section for recommended versions of cabal and ghc. Compiling the contract can be a time intensive task for low core / low ram systems. Users still confirm the validity of the precompiled plutus script without compiling the Haskell by building the smart contract address with the cli.
+
+
+Compiling Plutus:
+```bash
 # Clean and Build, this take a long time.
+cd vesting-contract
 rm vesting_contract.plutus
 cabal clean
 cabal build -w ghc-8.10.4
@@ -107,15 +126,41 @@ cabal run vesting-contract
 echo "done"
 ```
 
+Building An Address On Testnet:
+```bash
+cd vesting-contract
+cardano-cli address build --payment-script-file vesting_contract.plutus --testnet-magic 1097911063
+# addr_test1wrzld8ed48lth84yxzdrma4rudvgga6x976as2geah0gttq8a9drd
+```
+
+The compiled contract address is dependent upon the network being used. Please refer to the addresses below for official addresses.
+```
+# testnet
+addr_test1wrzld8ed48lth84yxzdrma4rudvgga6x976as2geah0gttq8a9drd
+# mainnet
+addr1w8zld8ed48lth84yxzdrma4rudvgga6x976as2geah0gttqu433vg
+```
+
 ## Requirements
 
 ```
+cardano-cli --version
+# cardano-cli 1.34.1 - linux-x86_64 - ghc-8.10
+# git rev 73f9a746362695dc2cb63ba757fbcabb81733d23
+
+cardano-node --version
+# cardano-node 1.34.1 - linux-x86_64 - ghc-8.10
+# git rev 73f9a746362695dc2cb63ba757fbcabb81733d23
+
 cabal --version
 # cabal-install version 3.4.0.0
 # compiled using version 3.4.0.0 of the Cabal library
 
 ghc --version
 # The Glorious Glasgow Haskell Compilation System, version 8.10.4
+
+python --version
+# Python 3.9.5
 ```
 
 ## Links

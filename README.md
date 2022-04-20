@@ -1,7 +1,7 @@
-# Smart Contracts
+# Adosia
 
 A Collection of Smart Contracts for Adosia. 
 
-## Space Printer
+## Vesting Solutions
 
-## Vesting
+Please see the vesting-solutions folder under the most recent tagged release for the most up-to-date version of the vesting contract.
