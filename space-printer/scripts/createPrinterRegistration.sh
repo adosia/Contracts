@@ -13,7 +13,6 @@ echo -e "Script: " $script_address
 printer_address=$(cat wallets/printer/payment.addr)
 echo -e "\nCustomer:" ${printer_address}
 
-
 # Customer puts there offer in the utxo
 printer_registration_out="${script_address} + 10000000"
 echo -e "\nCreating A New Printing Job:\n" ${printer_registration_out}

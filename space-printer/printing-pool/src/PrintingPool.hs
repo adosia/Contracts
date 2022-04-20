@@ -72,7 +72,7 @@ data CustomDatumType =  PrintingPool        PrintingPoolType        |
                         PrintingInformation PrintingInfoType        |
                         CurrentlyShipping   ShippingInfoType        |
                         PrinterRegistration PrinterRegistrationType |
-                        QualityAssurance    QualityAssuranceType 
+                        QualityAssurance    QualityAssuranceType
 PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ('PrintingPool,        0)
                                               , ('OfferInformation,    1)
                                               , ('PrintingInformation, 2)
@@ -122,7 +122,7 @@ mkValidator _ datum redeemer context =
           ; let c = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)                         -- single script input
           ; all (==(True :: Bool)) [a,b,c]
           }
-        Update ->
+        Update -> 
           case embeddedDatum continuingTxOutputs of
             (PrintingPool ppt') -> do
               { let contValue = validatingValue - Ada.lovelaceValueOf (ppOfferPrice ppt) + Ada.lovelaceValueOf (ppOfferPrice ppt')
@@ -134,27 +134,22 @@ mkValidator _ datum redeemer context =
               ; all (==(True :: Bool)) [a,b,c,d,e]
               }
             _ -> False
-        Offer ->
-          case embeddedDatum continuingTxOutputs of
-            (OfferInformation oit) -> do
-              { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (oiPrinterPKH oit)                         -- The printer must sign it
+        Offer ->  let datums = getOfferInfoDatum continuingTxOutputs in
+          case datums of
+            Nothing -> traceIfFalse "Offer Failed No Tx Found" False
+            Just oit -> do
+              { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (oiPrinterPKH oit) -- The printer must sign it
               ; let b = traceIfFalse "Offer: Incrt Tkn Cont"  $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
               ; let c = traceIfFalse "Incorrect New State"    $ ppt === oit                                                -- printer must change the datum 
               ; let d = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (2 :: Integer)              -- single script input
               ; let e = traceIfFalse "Printer Must Sign"      $ isRegisteredPrinter info txInputs (oiPrinterPKH oit)       -- single script input
               ; let f = traceIfFalse "Not Enough ADA On UTXO" $ Value.valueOf validatingValue Ada.adaSymbol Ada.adaToken > ppOfferPrice ppt
-              ; all (==(True :: Bool)) [a,b,c,d,e,f]
+              ; traceIfFalse "Offer Failed in Just" $ all (==(True :: Bool)) [a,b,c,d,e,f]
               }
-            (PrinterRegistration prt) -> do
-              { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (prPrinterPKH prt)
-              ; let b = traceIfFalse "Two Script Inputs Only" $ checkForNScriptInputs txInputs (2 :: Integer)
-              ; all (==(True :: Bool)) [a,b]
-              }
-            _ -> False
-        _ -> False
+        _ -> traceIfFalse "Printing Pool Error" False
     (OfferInformation oit) ->
       case redeemer of
-        Accept ->
+        Accept -> 
           case embeddedDatum continuingTxOutputs of
             (PrintingInformation pit) -> do
               {
@@ -185,7 +180,7 @@ mkValidator _ datum redeemer context =
               ; all (==(True :: Bool)) [a,b,c,d]
               }
             _ -> False
-        _ -> False
+        _ -> traceIfFalse "Offer Information Failed" False
     (PrintingInformation pit) ->
       case redeemer of
         Cancel ->
@@ -198,7 +193,7 @@ mkValidator _ datum redeemer context =
               ; all (==(True :: Bool)) [a,b,c,d]
               }
             _ -> False
-        Remove ->
+        Remove -> 
           case embeddedDatum continuingTxOutputs of
             (PrintingPool ppt) -> do
               { let a = traceIfFalse "Incorrect State"       $ pit === ppt                                                -- the token is getting an offer
@@ -226,7 +221,7 @@ mkValidator _ datum redeemer context =
               { let a = traceIfFalse "Incorrect Signer"     $ txSignedBy info (piPrinterPKH pit) || txSignedBy info (piCustomerPKH pit)
               ; let b = traceIfFalse "Incorrect Token Cont" $ checkContTxOutForValue continuingTxOutputs validatingValue -- customer gets token back
               ; let c = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-              ; let d = traceIfFalse "Incorrect New State"  $ qat === pit                                               -- job is done printing and is now shipping
+              ; let d = traceIfFalse "Incorrect New State"  $ qat === pit                                                -- job is done printing and is now shipping
               ; all (==(True :: Bool)) [a,b,c,d]
               }
             _ -> False
@@ -246,7 +241,7 @@ mkValidator _ datum redeemer context =
               { let a = traceIfFalse "Incorrect Signer"     $ txSignedBy info (siPrinterPKH sit) || txSignedBy info (siCustomerPKH sit)
               ; let b = traceIfFalse "Incorrect Token Cont" $ checkContTxOutForValue continuingTxOutputs validatingValue -- customer gets token back
               ; let c = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-              ; let d = traceIfFalse "Incorrect New State"  $ qat === sit                                               -- job is done printing and is now shipping
+              ; let d = traceIfFalse "Incorrect New State"  $ qat === sit                                                -- job is done printing and is now shipping
               ; all (==(True :: Bool)) [a,b,c,d]
               }
             _ -> False
@@ -268,7 +263,7 @@ mkValidator _ datum redeemer context =
           ; let c = traceIfFalse "SingleScript Inputs"    $ checkForNScriptInputs txInputs (1 :: Integer)
           ; all (==(True :: Bool)) [a,b,c]
           }
-        Update ->
+        Update -> 
           case embeddedDatum continuingTxOutputs of
             (PrinterRegistration prt') -> do
               { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (prPrinterPKH prt)
@@ -279,23 +274,18 @@ mkValidator _ datum redeemer context =
               ; all (==(True :: Bool)) [a,b,c,d,e]
               }
             _ -> False
-        Prove ->
-          case embeddedDatum continuingTxOutputs of
-            (PrinterRegistration prt') -> do
+        Prove -> let datums = getPrinterRegDatum continuingTxOutputs in
+          case datums of
+            Nothing -> traceIfFalse "Prove Failed No TxOut Found" False
+            Just prt' -> do
               { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (prPrinterPKH prt)
               ; let b = traceIfFalse "Prove:Incorr Tkn Cont"  $ checkContTxOutForValue continuingTxOutputs $ Ada.lovelaceValueOf printerDeposit
               ; let c = traceIfFalse "Two Script Inputs Only" $ checkForNScriptInputs txInputs (2 :: Integer)
               ; let d = traceIfFalse "Incorrect New State"    $ prt == prt'
               ; let e = traceIfFalse "Not Enough ADA On UTXO" $ Value.valueOf validatingValue Ada.adaSymbol Ada.adaToken == printerDeposit
-              ; all (==(True :: Bool)) [a,b,c,d,e]
+              ; traceIfFalse "Proved fail inside Just" $ all (==(True :: Bool)) [a,b,c,d,e] -- traceIfTrue "" $
               }
-            (PrintingInformation pit) -> do
-              { let a = traceIfFalse "Incorrect Signer"     $ txSignedBy info (piPrinterPKH pit)
-              ; let b = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (2 :: Integer)              -- single script input
-              ; all (==(True :: Bool)) [a,b]
-              }
-            _ -> False
-        _ -> False
+        _ -> traceIfFalse "printer registration failed" False
   where
     info :: TxInfo
     info = scriptContextTxInfo context
@@ -320,13 +310,41 @@ mkValidator _ datum redeemer context =
     printerDeposit :: Integer
     printerDeposit = 10_000_000
 
+    getOfferInfoDatum :: [TxOut] -> Maybe OfferInformationType
+    getOfferInfoDatum [] = Nothing
+    getOfferInfoDatum (txOut:txOuts) =
+      case txOutDatumHash txOut of
+        Nothing -> getOfferInfoDatum txOuts
+        Just dh ->
+          case findDatum dh info of
+            Nothing               -> getOfferInfoDatum txOuts
+            Just (Datum datum') ->
+              case PlutusTx.unsafeFromBuiltinData datum' of
+                (OfferInformation oit) -> Just oit
+                _                      -> getOfferInfoDatum txOuts
+
+    getPrinterRegDatum :: [TxOut] -> Maybe PrinterRegistrationType
+    getPrinterRegDatum [] = Nothing
+    getPrinterRegDatum (txOut:txOuts) =
+      case txOutDatumHash txOut of
+        Nothing -> getPrinterRegDatum txOuts
+        Just dh ->
+          case findDatum dh info of
+            Nothing               -> getPrinterRegDatum txOuts
+            Just (Datum datum') ->
+              case PlutusTx.unsafeFromBuiltinData datum' of
+                (PrinterRegistration prt) -> Just prt
+                _                         -> getPrinterRegDatum txOuts
+
     embeddedDatum :: [TxOut] -> CustomDatumType
     embeddedDatum [] = datum
-    embeddedDatum (x:xs) = case txOutDatumHash x of
-      Nothing -> embeddedDatum xs
-      Just dh -> case findDatum dh info of
-        Nothing        -> datum
-        Just (Datum d) -> Data.Maybe.fromMaybe datum (PlutusTx.fromBuiltinData d)
+    embeddedDatum (txOut:txOuts) =
+      case txOutDatumHash txOut of
+        Nothing -> embeddedDatum txOuts
+        Just dh ->
+          case findDatum dh info of
+            Nothing        -> embeddedDatum txOuts
+            Just (Datum datum') -> Data.Maybe.fromMaybe datum (PlutusTx.fromBuiltinData datum')
 
     validityRange :: POSIXTimeRange
     validityRange = txInfoValidRange info

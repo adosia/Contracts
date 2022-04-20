@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vesting</title>
+    <script src='https://bundle.run/buffer@6.0.3'></script>
+    <script src='https://cdn.jsdelivr.net/npm/@stricahq/typhonjs@1.1.3/dist/index.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/bignumber.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/@stricahq/cbors@1.0.0/dist/index.min.js'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src='protocolParamters.js'></script>
+    <script src='plutusTx.js'></script>
+</head>
+<body>
+    <p>THIS IS CC TEST</p>
+    <button id="connectButton" disabled>Connect to CC Wallet</button>
+    <button id="buildTxButton" style="display: none;">Retrieve Funds</button>
+<!-- put button logic here -->
+<script>
+    $(document).ready(async function () {
+        // Get References
+        const $connectButton = $('button#connectButton');
+        // test endpoint buttons
+        const $buildTxButton = $('button#buildTxButton');
+        // Start out with null wallet object
+        let CCWallet = null;
+
+        // Helper functions
+        const isEnabled = async () => {
+            try {
+                const result = await CCWallet.isEnabled();
+                return result === true;
+            } catch (e) {
+                return false;
+            }
+        };
+        const enableWallet = async () => {
+            return await CCWallet.enable();
+        };
+
+        // Init
+        setTimeout(async function () {
+            CCWallet = window.cardano.ccvault;
+            if (await isEnabled()) {
+                $connectButton.hide();
+                $buildTxButton.show();
+            } else {
+                $connectButton.removeAttr('disabled');
+            }
+        }, 500);
+
+        // Handle connect
+        $connectButton.click(async function () {
+            const result = await enableWallet();
+            if (result === true) {
+                $connectButton.hide();
+                $buildTxButton.show();
+            } else {
+                alert('You declined to connect the wallet!');
+            }
+        });
+
+        
+        // unlock a value
+        $buildTxButton.click(async function () {
+            console.log("Building Tx")
+            let wallet = await enableWallet()
+
+            const printerPKH = "60f2979446eb9a84e920765f14d73444bcdeaa3856ac58b97a955a7cf4"
+            const printerAddr = pkhToAddr(printerPKH);
+
+            const customerPKH = "607aa2eb2ab925ceda499e056f301b2749f591f3f5aef7c850bd7735d3"
+            const customerAddr = pkhToAddr(customerPKH);
+
+            const scriptAddr = await scriptPointer('./printing_pool.plutus', 'addr_test1wzcd97cg8rnvyjl3llrq6j229r04e3qldy23hgz4yf9yyggjtknhj');
+            const scriptBech32 = 'addr_test1wzcd97cg8rnvyjl3llrq6j229r04e3qldy23hgz4yf9yyggjtknhj'
+
+            const printingPoolDatum = {
+                constructor: 0,
+                fields: [
+                    {
+                        constructor: 0,
+                        fields: [
+                            byteBuffer(customerPKH),
+                            12000000
+                        ]
+                    }
+                ]
+            };
+            console.log('POOL DATUM:', printingPoolDatum)
+
+            const makeOfferDatum = {
+                constructor: 1,
+                fields: [
+                    {
+                        constructor: 0,
+                        fields: [
+                            byteBuffer(customerPKH),
+                            12000000,
+                            byteBuffer(printerPKH),
+                            12000000
+                        ]
+                    }
+                ]
+            };
+            console.log('OFFER DATUM:', makeOfferDatum)
+            // pr datum
+            const printerRegistrationDatum = {
+                constructor: 4,
+                fields: [
+                    {
+                        constructor: 0,
+                        fields: [
+                            byteBuffer(printerPKH),
+                            byteBuffer("70725072696e746572496e666f"),
+                            byteBuffer("70725555494448617368")
+                        ]
+                    }
+                ]
+            };
+            console.log('PRINTER DATUM:',printerRegistrationDatum)
+            // create redeemer
+            const proveRedeemerData = {
+                constructor: 7,
+                fields: []
+            };
+            const proveRedeemer = { exUnits: { mem: 15686452, steps: 8394880549 }, plutusData: proveRedeemerData };
+            console.log('Prove REDEEMER:', proveRedeemer)
+            // create redeemer
+            const offerRedeemerData = {
+                constructor: 2,
+                fields: []
+            };
+            const offerRedeemer = { exUnits: { mem: 15686452, steps: 8394880549 }, plutusData: offerRedeemerData };
+            console.log('Prove REDEEMER:', offerRedeemer)
+
+            const minADA = 128569661;
+            console.log(typhonjs.utils.getAddressFromHex(printerPKH).addressBech32)
+            const collateral = txInput(
+                getAddress(typhonjs.utils.getAddressFromHex(printerPKH).addressBech32), 
+                "afbe14ad4dd5cca9298787136cc9e3408a8c2674bdc2bc06ded4d00feb6b2797", 
+                0, 
+                minADA.toString(), 
+                []
+            )
+            // //script tx hash
+            const pid = "16af70780a170994e8e5e575f4401b1d89bddf7d1a11d6264e0b0c85";
+            const hex = "74426967546f6b656e4e616d653132";
+            const amt = "1";
+            let txHash = "078a4f4d4a3c8122ab33536b51a872602e96e82d2c2bacb7f577301794354f4c";
+            let txId = 1;
+            const scriptTokens = [token(amt, pid, hex)];
+            const minADAPO = 13724100;
+            
+            const purchaseOrderScriptUTxO = txInput(scriptAddr, txHash, txId, minADAPO.toString(), scriptTokens, printingPoolDatum, offerRedeemer);
+            
+            txHash = "afbe14ad4dd5cca9298787136cc9e3408a8c2674bdc2bc06ded4d00feb6b2797";
+            txId = 1;
+            const minADAPR = 10000000;
+            const printerRegistrationScriptUTxO = txInput(scriptAddr, txHash, txId, minADAPR.toString(), [], printerRegistrationDatum, proveRedeemer);
+                    
+
+            let inputs = [purchaseOrderScriptUTxO, printerRegistrationScriptUTxO];
+            txHash = "afbe14ad4dd5cca9298787136cc9e3408a8c2674bdc2bc06ded4d00feb6b2797";
+            txId = 0;
+            const inputAddr = getAddress(typhonjs.utils.getAddressFromHex(printerPKH).addressBech32)
+            inputs.push(txInput(inputAddr, txHash, txId, minADA.toString(), []))
+            console.log('INPUTS:', inputs);
+
+            let outputs = [
+                txOutput(getAddress(scriptBech32), minADAPO, scriptTokens, makeOfferDatum),
+                txOutput(getAddress(scriptBech32), minADAPR, [], printerRegistrationDatum),
+            ];
+            console.log('OUTPUTS:', outputs);
+
+            // Create the tx
+            const signer = {hash: printerPKH, type: 0 }
+            const tx = await generalizedPayment(inputs, outputs, collateral, [signer], 999999999)
+            console.log('TX:', tx);
+
+
+            let leftoverLovelace = minADA - 2000000
+            tx.addOutput(txOutput(getAddress(typhonjs.utils.getAddressFromHex(printerPKH).addressBech32), leftoverLovelace, []))
+            tx.setFee(new BigNumber(2000000))
+
+            console.log('Building Tx')
+            const txbody = tx.buildTransaction()
+                    
+            console.log('TXBODY:',txbody.payload)
+
+            try {
+                const signed = await wallet.signTx(txbody.payload, true, false);
+                console.log('SIGNATURE:', signed)
+                console.log('DONE!');
+            } catch (error) {
+                console.log("TX HAS BEEN CANCELLED")
+                console.log("", error)
+            }
+        }); // end of complete sale
+    });
+</script>
+</body>
+</html>

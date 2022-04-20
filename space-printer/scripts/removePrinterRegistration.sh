@@ -61,7 +61,7 @@ FEE=$(${cli} transaction build \
     --change-address ${printer_address} \
     --tx-in ${HEXTXIN} \
     --tx-in-collateral ${COLLAT} \
-    --tx-in ${SCRIPT_TXIN}  \
+    --tx-in afbe14ad4dd5cca9298787136cc9e3408a8c2674bdc2bc06ded4d00feb6b2797#1 \
     --tx-in-datum-file data/datums/create_printer_registration_datum.json \
     --tx-in-redeemer-file data/redeemers/remove_redeemer.json \
     --tx-out="${printer_registration_out}" \
@@ -74,7 +74,7 @@ IFS=' ' read -ra FEE <<< "${VALUE[1]}"
 FEE=${FEE[1]}
 echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
-# exit
+exit
 #
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
