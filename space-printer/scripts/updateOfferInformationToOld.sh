@@ -5,6 +5,7 @@ set -e
 export CARDANO_NODE_SOCKET_PATH=$(cat pathToSocket.sh)
 cli=$(cat pathToCli.sh)
 
+wallets="wallets"
 script_path="../printing-pool/printing_pool.plutus"
 
 # Addresses
@@ -14,8 +15,21 @@ echo -e "Script: " $script_address
 printer_address=$(cat wallets/printer/payment.addr)
 echo -e "\nCustomer: " ${printer_address}
 
-printer_registration_out="${script_address} + 10000000"
-echo -e "\nRemoving A New Printing Job:\n" ${printer_registration_out}
+# Define Asset to be printed here
+policy_id="16af70780a170994e8e5e575f4401b1d89bddf7d1a11d6264e0b0c85"
+token_name="tBigTokenName12"
+token_hex=$(echo -n ${token_name} | xxd -ps)
+asset="1 ${policy_id}.${token_hex}"
+
+min_utxo=$(${cli} transaction calculate-min-required-utxo \
+    --alonzo-era \
+    --protocol-params-file tmp/protocol.json \
+    --tx-out-datum-embed-file data/datums/update_offer_information_datum.json \
+    --tx-out="${script_address} ${asset}" | tr -dc '0-9')
+offer_price=$(cat data/datums/offer_information_datum.json | jq .fields[0].fields[1].int)
+offer_and_min=$((${min_utxo} + ${offer_price}))
+customer_job_to_be_updated="${script_address} + ${offer_and_min} + ${asset}"
+echo -e "\nRemoving A New Printing Job:\n" ${customer_job_to_be_updated}
 #
 # exit
 #
@@ -61,10 +75,10 @@ FEE=$(${cli} transaction build \
     --tx-in ${HEXTXIN} \
     --tx-in-collateral ${COLLAT} \
     --tx-in ${SCRIPT_TXIN}  \
-    --tx-in-datum-file data/datums/update_printer_registration_datum.json \
+    --tx-in-datum-file data/datums/update_offer_information_datum.json \
     --tx-in-redeemer-file data/redeemers/update_redeemer.json \
-    --tx-out="${printer_registration_out}" \
-    --tx-out-datum-embed-file data/datums/create_printer_registration_datum.json \
+    --tx-out="${customer_job_to_be_updated}" \
+    --tx-out-datum-embed-file data/datums/offer_information_datum.json \
     --required-signer wallets/printer/payment.skey \
     --tx-in-script-file ${script_path} \
     --testnet-magic 1097911063)

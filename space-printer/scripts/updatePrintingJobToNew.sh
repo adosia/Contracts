@@ -75,7 +75,7 @@ FEE=$(${cli} transaction build \
     --tx-in ${HEXTXIN} \
     --tx-in-collateral ${COLLAT} \
     --tx-in ${SCRIPT_TXIN}  \
-    --tx-in-datum-file data/datums/create_printing_pool_datum.json \
+    --tx-in-datum-file data/datums/printing_pool_datum.json \
     --tx-in-redeemer-file data/redeemers/update_redeemer.json \
     --tx-out="${customer_job_to_be_updated}" \
     --tx-out-datum-embed-file data/datums/update_printing_pool_datum.json \

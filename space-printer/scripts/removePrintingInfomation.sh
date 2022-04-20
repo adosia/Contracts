@@ -24,11 +24,11 @@ asset="1 ${policy_id}.${token_hex}"
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --alonzo-era \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/datums/create_printing_pool_datum.json \
-    --tx-out="${customer_address} ${asset}" | tr -dc '0-9')
-offer_price=$(cat data/datums/create_printing_pool_datum.json  | jq .fields[0].fields[1].int)
+    --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
+    --tx-out="${script_address} ${asset}" | tr -dc '0-9')
+offer_price=$(cat data/datums/printing_pool_datum.json  | jq .fields[0].fields[1].int)
 offer_and_min=$((${min_utxo} + ${offer_price}))
-customer_job_to_be_removed="${customer_address} + ${offer_and_min} + ${asset}"
+customer_job_to_be_removed="${script_address} + ${offer_and_min} + ${asset}"
 echo -e "\nRemoving A New Printing Job:\n" ${customer_job_to_be_removed}
 #
 # exit
@@ -65,20 +65,23 @@ alltxin=""
 TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/script_utxo.json)
 SCRIPT_TXIN=${TXIN::-8}
 
+currentSlot=$(${cli} query tip --testnet-magic 1097911063 | jq .slot)
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
     --alonzo-era \
     --protocol-params-file tmp/protocol.json \
+    --invalid-before $currentSlot \
     --invalid-hereafter 99999999 \
     --out-file tmp/tx.draft \
     --change-address ${customer_address} \
     --tx-in ${HEXTXIN} \
     --tx-in-collateral ${COLLAT} \
     --tx-in ${SCRIPT_TXIN}  \
-    --tx-in-datum-file data/datums/create_printing_pool_datum.json \
+    --tx-in-datum-file data/datums/printing_information_datum.json \
     --tx-in-redeemer-file data/redeemers/remove_redeemer.json \
     --tx-out="${customer_job_to_be_removed}" \
+    --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
     --required-signer wallets/customer/payment.skey \
     --tx-in-script-file ${script_path} \
     --testnet-magic 1097911063)

@@ -4,17 +4,14 @@ set -e
 # SET UP VARS HERE
 export CARDANO_NODE_SOCKET_PATH=$(cat pathToSocket.sh)
 cli=$(cat pathToCli.sh)
-wallets="wallets"
 script_path="../printing-pool/printing_pool.plutus"
 
 # Addresses
 script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 1097911063)
-# echo -e "Script: " $script_address
+echo -e "Script: " $script_address
 
-customer_address=$(cat ${wallets}/wallet-a/payment.addr)
-# echo -e "\nCustomer: " ${customer_address}
-printer_address=$(cat ${wallets}/wallet-b/payment.addr)
-# echo -e "\nPrinter: " ${printer_address}
+printer_address=$(cat wallets/printer/payment.addr)
+echo -e "\nPrinter: " ${printer_address}
 
 # Define Asset to be printed here
 policy_id="16af70780a170994e8e5e575f4401b1d89bddf7d1a11d6264e0b0c85"
@@ -25,21 +22,25 @@ asset="1 ${policy_id}.${token_hex}"
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --alonzo-era \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/currentlyShippingDatum.json \
-    --tx-out="$customer_address $asset" | tr -dc '0-9')
-job_is_finished="${customer_address} + ${min_utxo} + ${asset}"
-
-echo -e "\nConfirming A Completed Job:\n" ${job_is_finished}
-
+    --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
+    --tx-out="${script_address} ${asset}" | tr -dc '0-9')
+# Customer puts there offer in the utxo
+offer_price=$(cat data/datums/printing_pool_datum.json  | jq .fields[0].fields[1].int)
+offer_and_min=$((${min_utxo} + ${offer_price}))
+job_to_be_shipped="${script_address} + ${offer_and_min} + ${asset}"
+echo -e "\nConfirming A Completed Job:\n" ${job_to_be_shipped}
+#
+# exit
+#
 echo -e "\033[0;36m Getting Printer UTxO Information  \033[0m"
 ${cli} query utxo \
     --testnet-magic 1097911063 \
-    --address ${customer_address} \
+    --address ${printer_address} \
     --out-file tmp/customer_utxo.json
 
 TXNS=$(jq length tmp/customer_utxo.json)
 if [ "$TXNS" -eq "0" ]; then
-   echo -e "\n \033[0;31m NO UTxOs Found At ${customer_address} \033[0m \n";
+   echo -e "\n \033[0;31m NO UTxOs Found At ${printer_address} \033[0m \n";
    exit;
 fi
 alltxin=""
@@ -70,15 +71,15 @@ FEE=$(${cli} transaction build \
     --protocol-params-file tmp/protocol.json \
     --invalid-hereafter 99999999 \
     --out-file tmp/tx.draft \
-    --change-address ${customer_address} \
+    --change-address ${printer_address} \
     --tx-in ${HEXTXIN} \
     --tx-in-collateral ${COLLAT} \
     --tx-in ${SCRIPT_TXIN}  \
-    --tx-in-datum-file data/currentlyShippingDatum.json \
-    --tx-in-redeemer-file data/confirmJobRedeemer.json \
-    --tx-out ${printer_address}+7000000 \
-    --tx-out="${job_is_finished}" \
-    --required-signer ${wallets}/wallet-a/payment.skey \
+    --tx-in-datum-file data/datums/printing_information_datum.json \
+    --tx-in-redeemer-file data/redeemers/ship_redeemer.json \
+    --tx-out="${job_to_be_shipped}" \
+    --tx-out-datum-embed-file data/datums/shipping_information_datum.json \
+    --required-signer wallets/printer/payment.skey \
     --tx-in-script-file ${script_path} \
     --testnet-magic 1097911063)
 
@@ -86,14 +87,18 @@ IFS=':' read -ra VALUE <<< "$FEE"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
 FEE=${FEE[1]}
 echo -e "\033[1;32m Fee: \033[0m" $FEE
-
+#
+# exit
+#
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
-    --signing-key-file ${wallets}/wallet-a/payment.skey \
+    --signing-key-file wallets/printer/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
     --testnet-magic 1097911063
-
+#
+# exit
+#
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
     --testnet-magic 1097911063 \

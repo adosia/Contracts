@@ -25,7 +25,7 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
     --tx-out-datum-embed-file data/datums/update_printing_pool_datum.json \
     --tx-out="$script_address $asset" | tr -dc '0-9')
-offer_price=$(cat data/datums/create_printing_pool_datum.json | jq .fields[0].fields[1].int)
+offer_price=$(cat data/datums/printing_pool_datum.json | jq .fields[0].fields[1].int)
 offer_and_min=$((${min_utxo} + ${offer_price}))
 customer_job_to_be_updated="${script_address} + ${offer_and_min} + ${asset}"
 echo -e "\nRemoving A New Printing Job:\n" ${customer_job_to_be_updated}
@@ -80,7 +80,7 @@ FEE=$(${cli} transaction build \
     --tx-in-datum-file data/datums/update_printing_pool_datum.json \
     --tx-in-redeemer-file data/redeemers/update_redeemer.json \
     --tx-out="${customer_job_to_be_updated}" \
-    --tx-out-datum-embed-file data/datums/create_printing_pool_datum.json \
+    --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
     --required-signer wallets/customer/payment.skey \
     --tx-in-script-file ${script_path} \
     --testnet-magic 1097911063)

@@ -22,10 +22,10 @@ asset="1 ${policy_id}.${token_hex}"
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --alonzo-era \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/datums/create_printing_pool_datum.json \
+    --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
     --tx-out="${script_address} ${asset}" | tr -dc '0-9')
 # Customer puts there offer in the utxo
-offer_price=$(cat data/datums/create_printing_pool_datum.json  | jq .fields[0].fields[1].int)
+offer_price=$(cat data/datums/printing_pool_datum.json  | jq .fields[0].fields[1].int)
 offer_and_min=$((${min_utxo} + ${offer_price}))
 customer_job_to_be_printed="${script_address} + ${offer_and_min} + ${asset}"
 echo -e "\nCreating A New Printing Job:\n" ${customer_job_to_be_printed}
@@ -56,7 +56,7 @@ FEE=$(${cli} transaction build \
     --change-address ${customer_address} \
     --tx-in ${HEXTXIN} \
     --tx-out="${customer_job_to_be_printed}" \
-    --tx-out-datum-embed-file data/datums/create_printing_pool_datum.json \
+    --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
     --testnet-magic 1097911063)
 
 IFS=':' read -ra VALUE <<< "$FEE"
