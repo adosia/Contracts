@@ -39,28 +39,17 @@ module DataTypes
   , oiOfferPrice
   , oiPrinterPKH
   , oiPrintTime
-  , (===)
   , ShippingInfoType
   , siCustomerPKH
   , siOfferPrice
   , siPrinterPKH
   , siShipTime
-  , QualityAssuranceType
-  , qaCustomerPKH
-  , qaOfferPrice
-  , qaPrinterPKH
-  , PrinterRegistrationType
-  , prPrinterPKH
-  , prPrinterInfo
-  , prUUIDHash
-  , findOtherPKH
+  , (===)
   ) where
 import           Ledger                    hiding ( singleton )
 import           Playground.Contract
 import qualified PlutusTx
 import           PlutusTx.Prelude
-import qualified Plutus.V1.Ledger.Contexts  as Contexts
-
 {- |
   Author   : The Ancient Kraken
   Copyright: 2021
@@ -115,7 +104,7 @@ instance Eq OfferInformationType where
   a == b = ( oiCustomerPKH a == oiCustomerPKH b) &&
            ( oiOfferPrice  a == oiOfferPrice  b) &&
            ( oiPrinterPKH  a == oiPrinterPKH  b) &&
-           ( oiPrintTime   a == oiPrintTime   b)
+           ( oiPrintTime   a /= oiPrintTime   b)
 
 instance Equiv PrintingPoolType OfferInformationType where
   {-# INLINABLE (===) #-}
@@ -146,24 +135,17 @@ instance Eq PrintingInfoType where
            ( piPrinterPKH  a == piPrinterPKH  b) &&
            ( piPrintTime   a == piPrintTime   b)
 
-instance Equiv PrintingInfoType PrintingInfoType where
-  {-# INLINABLE (===) #-}
-  a === b = ( piCustomerPKH a == piCustomerPKH b) &&
-            ( piOfferPrice  a == piOfferPrice  b) &&
-            ( piPrinterPKH  a == piPrinterPKH  b) &&
-            ( piPrintTime   a /= piPrintTime   b)
-
 instance Equiv PrintingInfoType PrintingPoolType where
   {-# INLINABLE (===) #-}
   a === b = ( piCustomerPKH a == ppCustomerPKH b) &&
             ( piOfferPrice  a == ppOfferPrice  b)
 
-instance Equiv PrintingInfoType OfferInformationType where
+instance Equiv OfferInformationType PrintingInfoType where
   {-# INLINABLE (===) #-}
-  a === b = ( piCustomerPKH a == oiCustomerPKH b) &&
-            ( piOfferPrice  a == oiOfferPrice  b) &&
-            ( piPrinterPKH  a == oiPrinterPKH  b) &&
-            ( piPrintTime   a == oiPrintTime   b)
+  a === b = ( oiCustomerPKH a == piCustomerPKH b) &&
+            ( oiOfferPrice  a == piOfferPrice  b) &&
+            ( oiPrinterPKH  a == piPrinterPKH  b) &&
+            ( oiPrintTime   a == piPrintTime   b)
 -------------------------------------------------------------------------------
 -- | Shipping Data Object
 -------------------------------------------------------------------------------
@@ -195,77 +177,3 @@ instance Equiv PrintingInfoType ShippingInfoType where
             ( piOfferPrice  a == siOfferPrice  b) &&
             ( piPrinterPKH  a == siPrinterPKH  b) &&
             ( siShipTime    b  > (0 :: Integer) )
-
--------------------------------------------------------------------------------
--- | Quality Assurance Data Object
--------------------------------------------------------------------------------
-data QualityAssuranceType = QualityAssuranceType
-  { qaCustomerPKH :: !PubKeyHash
-  -- ^ The customer's payment public key hash.
-  , qaOfferPrice  :: !Integer
-  -- ^ The lovelace amount for the printer.
-  , qaPrinterPKH  :: !PubKeyHash
-  -- ^ The printer's payment public key hash.
-  }
-    deriving stock (Show, Generic)
-    deriving anyclass (FromJSON, ToJSON, ToSchema)
-PlutusTx.unstableMakeIsData ''QualityAssuranceType
-PlutusTx.makeLift ''QualityAssuranceType
-
-instance Eq QualityAssuranceType where
-  {-# INLINABLE (==) #-}
-  a == b = ( qaCustomerPKH a == qaCustomerPKH b) &&
-           ( qaOfferPrice  a == qaOfferPrice  b) &&
-           ( qaPrinterPKH  a == qaPrinterPKH  b)
-
-instance Equiv QualityAssuranceType ShippingInfoType where
-  {-# INLINABLE (===) #-}
-  a === b = ( qaCustomerPKH a == siCustomerPKH b) &&
-            ( qaOfferPrice  a == siOfferPrice  b) &&
-            ( qaPrinterPKH  a == siPrinterPKH  b)
-
-instance Equiv QualityAssuranceType PrintingInfoType where
-  {-# INLINABLE (===) #-}
-  a === b = ( qaCustomerPKH a == piCustomerPKH b) &&
-            ( qaOfferPrice  a == piOfferPrice  b) &&
-            ( qaPrinterPKH  a == piPrinterPKH  b)
--------------------------------------------------------------------------------
--- | Printer Registration Object
--------------------------------------------------------------------------------
-data PrinterRegistrationType = PrinterRegistrationType
-  { prPrinterPKH  :: !PubKeyHash
-  -- ^ The printer's payment public key hash.
-  , prPrinterInfo :: !BuiltinByteString
-  -- ^ A brief string of info / hash of info.
-  , prUUIDHash    :: !BuiltinByteString
-  -- ^ Hash Of UUID required for stake keys.
-  }
-    deriving stock (Show, Generic)
-    deriving anyclass (FromJSON, ToJSON, ToSchema)
-PlutusTx.unstableMakeIsData ''PrinterRegistrationType
-PlutusTx.makeLift ''PrinterRegistrationType
-
-instance Eq PrinterRegistrationType where
-  {-# INLINABLE (==) #-}
-  a == b = ( prPrinterPKH  a == prPrinterPKH  b) &&
-           ( prPrinterInfo a == prPrinterInfo b) &&
-           ( prUUIDHash    a == prUUIDHash    b)
-
-instance Equiv PrinterRegistrationType PrinterRegistrationType where
-  {-# INLINABLE (===) #-}
-  a === b = prPrinterPKH  a == prPrinterPKH  b
-
--------------------------------------------------------------------------------
--- | Find the PubKeyHash of the other UTxO in the transaction.
--------------------------------------------------------------------------------
-findOtherPKH :: TxInfo -> [TxInInfo]  -> Maybe PubKeyHash
-findOtherPKH _ [] = Nothing
-findOtherPKH info (x:xs)  =
-  case txOutDatumHash $ txInInfoResolved x of
-    Nothing         -> findOtherPKH info xs
-    Just datumHash' ->
-      case Contexts.findDatum datumHash' info of
-        Nothing             -> findOtherPKH info xs
-        Just (Datum datum') ->
-          case PlutusTx.unsafeFromBuiltinData datum' of
-            (PrinterRegistrationType pkh' _ _) -> Just pkh'

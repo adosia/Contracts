@@ -30,15 +30,12 @@ module CheckFuncs
   , checkContTxOutForValue
   , checkTxOutForValueAtPKH
   , lockInterval
-  , isRegisteredPrinter
   ) where
-
 import           Ledger                    hiding ( singleton )
 import           PlutusTx.Prelude
 import qualified Plutus.V1.Ledger.Value    as Value
 import qualified Plutus.V1.Ledger.Time     as Time
 import qualified Plutus.V1.Ledger.Interval as Interval
-import DataTypes
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
@@ -62,7 +59,6 @@ checkContTxOutForValue (x:xs) val
   where
     checkVal :: Bool
     checkVal = txOutValue x == val
-
 -- Search each TxOut for the correct address and value.
 checkTxOutForValueAtPKH :: [TxOut] -> PubKeyHash -> Value -> Bool
 checkTxOutForValueAtPKH [] _pkh _val = False
@@ -75,20 +71,12 @@ checkTxOutForValueAtPKH (x:xs) pkh val
 
     checkVal :: Bool
     checkVal = Value.geq (txOutValue x) val
-
 -- Force a N script utxo inputs.
 checkForNScriptInputs :: [TxInInfo] -> Integer -> Bool
-checkForNScriptInputs txInputs nMatch' = traceIfFalse "Too many Script Inputs." $ loopInputs txInputs 0 nMatch'
+checkForNScriptInputs txInputs = loopInputs txInputs 0
   where
     loopInputs :: [TxInInfo] -> Integer -> Integer -> Bool
     loopInputs []      counter nMatch = counter == nMatch
     loopInputs (x:xs) !counter nMatch = case txOutDatumHash $ txInInfoResolved x of
         Nothing -> do counter <= nMatch && loopInputs xs counter nMatch
         Just _  -> do counter <= nMatch && loopInputs xs (counter + 1) nMatch
-
--- check if the pkh inside the printer registration datum is equal to another pkh
-isRegisteredPrinter :: TxInfo -> [TxInInfo] -> PubKeyHash -> Bool
-isRegisteredPrinter info txInputs pkh = 
-  case findOtherPKH info txInputs of
-    Nothing   -> False
-    Just pkh' -> pkh == pkh'
