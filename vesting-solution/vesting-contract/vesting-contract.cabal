@@ -51,7 +51,6 @@ library
 
   build-depends:        bytestring
                       , cardano-api
-                      , playground-common
                       , plutus-contract
                       , plutus-ledger
                       , plutus-ledger-api
@@ -61,6 +60,8 @@ library
                       , serialise
                       , text
                       , containers
+                      , aeson
+                      , openapi3
 
   ghc-options: -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
 

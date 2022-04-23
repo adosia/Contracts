@@ -35,10 +35,13 @@ module DataTypes
   , cdtVotingGroupPKHs
   , cdtVotingWeights
   ) where
-import           Playground.Contract
 import           Ledger
 import qualified PlutusTx
 import           PlutusTx.Prelude
+import           Data.Aeson          (ToJSON, FromJSON)
+import           GHC.Generics        (Generic)
+import           Data.OpenApi.Schema (ToSchema)
+import           Prelude             (Show)
 -------------------------------------------------------------------------------
 -- | Create the datum parameters data object.
 -------------------------------------------------------------------------------

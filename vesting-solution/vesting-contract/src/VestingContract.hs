@@ -37,7 +37,6 @@ import           Codec.Serialise           ( serialise )
 import qualified Data.ByteString.Lazy      as LBS
 import qualified Data.ByteString.Short     as SBS
 import           Data.Maybe
-import           Playground.Contract
 import           Plutus.Contract
 import           Ledger
 import qualified Ledger.Typed.Scripts      as Scripts
@@ -46,9 +45,9 @@ import           PlutusTx.Prelude
 import qualified Plutus.V1.Ledger.Scripts  as Plutus
 import qualified Plutus.V1.Ledger.Value    as Value
 import qualified Plutus.V1.Ledger.Ada      as Ada
-import HelperFuncs
-import DataTypes
-import CheckFuncs
+import           HelperFuncs
+import           DataTypes
+import           CheckFuncs
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
@@ -151,7 +150,8 @@ mkValidator vc datum redeemer context =
     profitValue = Ada.lovelaceValueOf $ vcProviderProfit vc
 
     validatedValue :: Value
-    validatedValue = case findOwnInput context of
+    validatedValue = 
+      case findOwnInput context of
         Nothing    -> traceError "No Input to Validate"
         Just input -> txOutValue $ txInInfoResolved input
 

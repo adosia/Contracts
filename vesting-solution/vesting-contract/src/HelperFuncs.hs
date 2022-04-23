@@ -37,17 +37,22 @@ import qualified Data.Maybe
 import qualified PlutusTx
 import qualified Plutus.V1.Ledger.Interval as Interval
 import qualified Plutus.V1.Ledger.Time     as Time
-import DataTypes
--- find the incoming embedded datum or return the passed in datum
+import           DataTypes
+-------------------------------------------------------------------------------
+-- | Find the incoming embedded datum or return the passed in datum
+-------------------------------------------------------------------------------
 embeddedDatum :: CustomDatumType -> TxInfo -> [TxOut] -> CustomDatumType
 embeddedDatum datum _ [] = datum
-embeddedDatum datum info (txOut:txOuts) = case txOutDatumHash txOut of
-  Nothing -> embeddedDatum datum info txOuts
-  Just possibleDatumHash -> case findDatum possibleDatumHash info of
-    Nothing         -> datum
-    Just (Datum d)  -> Data.Maybe.fromMaybe datum (PlutusTx.fromBuiltinData d)
-
--- Pick the locking interval, assume negative inf to endingTime.
+embeddedDatum datum info (txOut:txOuts) = 
+  case txOutDatumHash txOut of
+    Nothing                -> embeddedDatum datum info txOuts
+    Just possibleDatumHash -> 
+      case findDatum possibleDatumHash info of
+        Nothing         -> datum
+        Just (Datum d)  -> Data.Maybe.fromMaybe datum (PlutusTx.fromBuiltinData d)
+-------------------------------------------------------------------------------
+-- | Pick the locking interval, assume negative inf to endingTime.
+-------------------------------------------------------------------------------
 lockInterval :: CustomDatumType -> Interval POSIXTime
 lockInterval datum = Interval.to (integerToPOSIX endingTime)
   where
@@ -79,8 +84,9 @@ lockInterval datum = Interval.to (integerToPOSIX endingTime)
     -- Number of milliseconds from unix time start
     integerToPOSIX :: Integer -> POSIXTime
     integerToPOSIX x = Time.fromMilliSeconds $ Time.DiffMilliSeconds x
-
--- Assume Linear reward
+-------------------------------------------------------------------------------
+-- | Assume Linear reward
+-------------------------------------------------------------------------------
 rewardFunction :: CustomDatumType -> Integer
 rewardFunction datum = v0 - t * deltaV
   where
@@ -95,13 +101,14 @@ rewardFunction datum = v0 - t * deltaV
     -- time increment
     t :: Integer
     t = cdtVestingStage datum
-
--- calculate the total voting weight from all signers of a transaction
+-------------------------------------------------------------------------------
+-- | Calculate the total voting weight from all signers of a transaction
+-------------------------------------------------------------------------------
 calculateWeight :: [PubKeyHash] -> [PubKeyHash] -> [Integer] -> Integer -> Integer
 calculateWeight [] _ _ counter = counter
 calculateWeight (signer:signers) votingGroup votingWeights counter
   | checkSigneeInGroup signer votingGroup = calculateWeight signers votingGroup votingWeights (counter + signerWeight)
-  | otherwise                              = calculateWeight signers votingGroup votingWeights counter
+  | otherwise                             = calculateWeight signers votingGroup votingWeights counter
     where
       checkSigneeInGroup :: PubKeyHash -> [PubKeyHash] -> Bool
       checkSigneeInGroup _ [] = False
