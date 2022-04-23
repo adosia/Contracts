@@ -117,6 +117,7 @@ The contract can be compiled with cabal. Please see the requirements section for
 
 
 Compiling Plutus:
+
 ```bash
 # Clean and Build, this take a long time.
 cd vesting-contract
@@ -128,18 +129,21 @@ echo "done"
 ```
 
 Building An Address On Testnet:
+
 ```bash
 cd vesting-contract
 cardano-cli address build --payment-script-file vesting_contract.plutus --testnet-magic 1097911063
 ```
 
 Building An Address On Mainnet:
+
 ```bash
 cd vesting-contract
 cardano-cli address build --payment-script-file vesting_contract.plutus --mainnet
 ```
 
 The compiled contract address is dependent upon the network being used. Please refer to the addresses below for official addresses.
+
 ```
 # testnet
 addr_test1wqwewfk7al0hmw6c4ec9py0j3fsgx0eagja5z55f3en0hfgu35ug6
