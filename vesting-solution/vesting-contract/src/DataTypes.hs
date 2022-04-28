@@ -68,11 +68,11 @@ PlutusTx.makeLift ''CustomDatumType
 -- old is a; new is b
 instance Eq CustomDatumType where
   {-# INLINABLE (==) #-}
-  a == b = ( cdtVestingStage a + 1 == cdtVestingStage    b) &&
-           ( cdtVestingUserPKH   a == cdtVestingUserPKH  b) &&
-           ( cdtVotingGroupPKHs  a == cdtVotingGroupPKHs b) &&
-           ( cdtVotingWeights    a == cdtVotingWeights   b) &&
-           ( cdtTreasuryPKH      a == cdtTreasuryPKH     b) &&
-           ( cdtRewardParams     a == cdtRewardParams    b) &&
+  a == b = ( cdtVestingStage     a + 1  == cdtVestingStage         b)  &&
+           ( cdtVestingUserPKH       a  == cdtVestingUserPKH       b)  &&
+           ( cdtVotingGroupPKHs      a  == cdtVotingGroupPKHs      b)  &&
+           ( cdtVotingWeights        a  == cdtVotingWeights        b)  &&
+           ( cdtTreasuryPKH          a  == cdtTreasuryPKH          b)  &&
+           ( cdtRewardParams         a  == cdtRewardParams         b)  &&
            ( head (cdtDeadlineParams a) == head (cdtDeadlineParams b)) &&
            ( head (tail (cdtDeadlineParams a)) + head (cdtDeadlineParams a) == head (tail (cdtDeadlineParams b)))

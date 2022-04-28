@@ -66,9 +66,9 @@ data VestingContractParams = VestingContractParams
   , vcTokenName      :: !TokenName
   -- ^ The token name of the vesting token.
   , vcProviderPKH    :: !PubKeyHash
-  -- ^ The vesting as a service provider pkh
+  -- ^ The vesting as a service provider pkh.
   , vcProviderProfit :: !Integer
-  -- ^ Provider Profit in lovelaces
+  -- ^ Provider Profit in lovelaces.
   }
 PlutusTx.makeLift ''VestingContractParams
 -------------------------------------------------------------------------------
