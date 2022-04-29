@@ -53,10 +53,15 @@ import           CheckFuncs
   Copyright: 2022
   Version  : Rev 1
 
-  This is a vesting solution.
+  This is a vesting solution. There are contract level and utxo level variables.
+  The contract level is designed to hold unchangeable information that all utxos
+  must obey. The utxo level is more individual vestor focused, holding information
+  that may vary from vestor to vestor. This split allows for a lot of unique
+  features for a vesting group. There are three on-chain validation endpoints. A
+  user may either retrieve their funds, close their finished vestment, or petition
+  a vote. Voting is a weighted multisig agreement between members of a utxo's
+  voting group. Anything can be changed but contract level variables.
 -}
-
-
 -------------------------------------------------------------------------------
 -- | Create the token sale parameters data object.
 -------------------------------------------------------------------------------
