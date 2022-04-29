@@ -55,6 +55,8 @@ import           CheckFuncs
 
   This is a vesting solution.
 -}
+
+
 -------------------------------------------------------------------------------
 -- | Create the token sale parameters data object.
 -------------------------------------------------------------------------------
@@ -88,7 +90,7 @@ mkValidator :: VestingContractParams -> CustomDatumType -> CustomRedeemerType ->
 mkValidator vc datum redeemer context =
   case redeemer of
     RetrieveFunds -> do
-      { let a = traceIfFalse "Single Script Only"           $ checkForNScriptInputs txInputs (1 :: Integer)
+      { let a = traceIfFalse "Single Script Only"           $ nInputs == (1 :: Integer)
       ; let b = traceIfFalse "Incorrect Signer"             $ txSignedBy info vestingUser
       ; let c = traceIfFalse "The Value Is Still Locked"    $ not $ overlaps lockedInterval validityInterval
       ; let d = traceIfFalse "Incorrect Incoming Datum"     $ datum == embeddedDatum datum info contTxOutputs
@@ -99,7 +101,7 @@ mkValidator vc datum redeemer context =
       ;         traceIfFalse "Error: retrieveFunds Failure" $ all (==(True :: Bool)) [a,b,c,d,e,f,g,h]
       }
     CloseVestment -> do
-      { let a = traceIfFalse "Single Script Only"           $ checkForNScriptInputs txInputs (1 :: Integer)
+      { let a = traceIfFalse "Single Script Only"           $ nInputs == (1 :: Integer)
       ; let b = traceIfFalse "Funds Not Being Retrieved"    $ checkTxOutForValueAtPKH txOutputs treasuryPKH validatedValue
       ; let c = traceIfFalse "Funds Are Left To Vest"       $ Value.valueOf validatedValue policyId tokenName == (0 :: Integer)
       ;         traceIfFalse "Error: closeVestment Failure" $ all (==(True :: Bool)) [a,b,c]
@@ -124,10 +126,13 @@ mkValidator vc datum redeemer context =
 
     txInputs :: [TxInInfo]
     txInputs = txInfoInputs info
-    
+
+    nInputs :: Integer
+    nInputs = checkForNScriptInputs txInputs
+
     lockedInterval :: Interval POSIXTime
     lockedInterval = lockInterval datum
-    
+
     validityInterval :: POSIXTimeRange
     validityInterval = txInfoValidRange info
 
@@ -147,10 +152,10 @@ mkValidator vc datum redeemer context =
     providerPKH = vcProviderPKH vc
 
     profitValue :: Value
-    profitValue = Ada.lovelaceValueOf $ vcProviderProfit vc
+    profitValue = Ada.lovelaceValueOf $ vcProviderProfit vc * nInputs
 
     validatedValue :: Value
-    validatedValue = 
+    validatedValue =
       case findOwnInput context of
         Nothing    -> traceError "No Input to Validate"
         Just input -> txOutValue $ txInInfoResolved input

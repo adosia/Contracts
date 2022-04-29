@@ -65,15 +65,15 @@ checkTxOutForValueAtPKH (x:xs) pkh val
 -------------------------------------------------------------------------
 -- | Force a N script utxo inputs.
 -------------------------------------------------------------------------
-checkForNScriptInputs :: [TxInInfo] -> Integer -> Bool
-checkForNScriptInputs txInputs nMatch' = traceIfFalse "Too many Script Inputs." $ loopInputs txInputs 0 nMatch'
+checkForNScriptInputs :: [TxInInfo] -> Integer
+checkForNScriptInputs txInputs = loopInputs txInputs 0
   where
-    loopInputs :: [TxInInfo] -> Integer -> Integer -> Bool
-    loopInputs []      counter nMatch = counter == nMatch
-    loopInputs (x:xs) !counter nMatch = 
+    loopInputs :: [TxInInfo] -> Integer -> Integer
+    loopInputs []      counter = counter
+    loopInputs (x:xs) !counter = 
       case txOutDatumHash $ txInInfoResolved x of
-        Nothing -> do counter <= nMatch && loopInputs xs counter nMatch
-        Just _  -> do counter <= nMatch && loopInputs xs (counter + 1) nMatch
+        Nothing -> loopInputs xs counter
+        Just _  -> loopInputs xs (counter + 1)
 -------------------------------------------------------------------------
 -- | Calculate the voting weight
 -------------------------------------------------------------------------

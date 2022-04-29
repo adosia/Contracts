@@ -146,9 +146,18 @@ The compiled contract address is dependent upon the network being used. Please r
 
 ```
 # testnet
-addr_test1wqwewfk7al0hmw6c4ec9py0j3fsgx0eagja5z55f3en0hfgu35ug6
+addr_test1wzema20akaeh6ulc55zzklsqmuktlxngqqaz7vj5jnvu2dsujlk7x
 # mainnet
-addr1wywewfk7al0hmw6c4ec9py0j3fsgx0eagja5z55f3en0hfg8eqq8l
+addr1wxema20akaeh6ulc55zzklsqmuktlxngqqaz7vj5jnvu2ds86t23r
+```
+
+The contract is designed for use on the testnet and mainnet but the reference epoch is dependent on network. The transition into epoch 312 happened on testnet first then on mainnet. When compiling for mainnet be sure to adjust the hardcoded reference time. This change is in the HelperFuncs.hs file in the lockInterval function. Without this required change, mainnet time caluclations will be off by about a day.
+
+```hs
+    -- unix time at epoch 312
+    timeTilRefEpoch :: Integer
+    -- timeTilRefEpoch = 1640987100000  -- mainnet
+    timeTilRefEpoch = 1640895900000  -- testnet
 ```
 
 ## Requirements
