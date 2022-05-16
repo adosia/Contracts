@@ -1,14 +1,14 @@
 # Project Catalyst Fund 7 Vesting Contract
 
-Each contract is compiled specifically for a single token vestment solution. This allows a single contract to handle an entire vesting group where each utxo is a member of the vesting group. The logic allows for a nice seperation of assets and amazing customization of per vesting group basis. The contract provides the functionality for linear vesting with weighted multisig on-chain voting.
+Each contract is compiled specifically for a single token vestment solution. This allows a single contract to handle an entire vesting group where each utxo represents a member of the vesting group. This logic allows for a nice seperation of assets and amazing customization on vesting user level. The contract provides the functionality for linear vesting with weighted multisig on-chain voting. Inside this contract, the right to vest and vote is determined by public key hashes. This means the representation of a user's right to vest can not be traded.
 
-This contract is designed for a service provider to handle all UI/UX and receive payment for their services. The scripts in this repository allow for basic cli/web functionality for testing purposes only. Please use the current release for the most stable version of the smart contract.
+This contract is designed for a service provider to handle all UI/UX and receive payment for their services. The scripts in this repository allow for basic cli/web functionality for testing purposes only and will need to expanded upon for production environments. Please use the current release for the most stable version of the smart contract.
 
 The project is being released under Apache License 2.0 (Apache-2.0) so you can do what you like with this repo, as long as you include the required notices. If the contract gains traction post release then I will continue to contribute else it will end after the fund7 completion date, June 3rd 2022.
 
 ## Parameter Customization
 
-Each vesting contract has a predefine parameter structure that can not be changed. These are parameters that are withheld for every UTxO inside the contract and require the vesting group to agree before the vesting contract is compiled.
+Each vesting contract has a contract parameter structure that is defined at compile time and can not be changed in the future. These are the global parameters for every UTxO inside the contract. These values are required and must be agreed upon by the vesting group before the vesting contract is compiled.
 
 ```hs
 data VestingContractParams = VestingContractParams
@@ -21,17 +21,19 @@ data VestingContractParams = VestingContractParams
   , vcProviderPKH    :: !PubKeyHash
   -- ^ The vesting as a service provider pkh.
   , vcProviderProfit :: !Integer
-  -- ^ Provider Profit in lovelaces.
+  -- ^ Provider Profit in lovelaces, must be >= 1 ADA.
   }
 ```
 
-The majority parameter, vcMajorityParam, is one of the most important parameters for the vesting group. These number determines if a vote will pass or fail. The contract is designed for a singular policy vesting solution. If a vesting group requries multiple tokens then multiple contracts can be compiled. The provider profit is placed inside the contracts parameters to prevent the vesting group from voting that the profit parameter is removed. The contract is designed for some a service provider to be paid for providing the ability to have a fully on-chain vesting solution with voting.
+The majority parameter, vcMajorityParam, is one of the most important parameter for the vesting group. This integer determines the total voting weight required for a vote will pass. It is typically defined between zero and one hundred. Since the value is defined at compile time, a vesting group may circumvent the value with a special type of vote the rescales the voting weight. This customizable behavior via vote will be applied in many aspects of this vesting solution.
 
-### Vote Example
+The smart contract is designed for a singular policy token. It will work with either non-fungible and fungible tokens. If a vesting group requries multiple tokens to be vested then multiple contracts can be compiled for that specific vesting group. 
 
-Each voter has a voting weight attached to their payment public key hash inside the contract. The voting weights sum to 100. 
+The provider profit is placed inside the contracts parameters to prevent the vesting group from voting that the profit parameter is removed. The contract is designed for some a service provider to be paid for providing the ability to have a fully on-chain vesting solution.
 
-The majority parameter is defined to be 65 and there are five voters labeled with integers. 
+### Voting Example
+
+There are five voters inside the vesting group. Each voter has a voting weight attached to their payment public key hash inside the contract. The sum of all the voting weight is 100 and the majority parameter will equal 65.
 
 Their weights are:
 
@@ -44,7 +46,7 @@ Their weights are:
 }
 ```
 
-A successful vote here is any combination of signatures that sum to a weight greater than or equal to the majority paramter, 65. In this case, there are 10 possible combinations for a successful vote. Each number corresponds to a voter's signature on a transaction that represents a vote. A voter answers YES when they sign a vote transaction. Abstaining from the vote is NO. The order of the voters in each solution does not matter.
+A successful vote here is any combination of signatures that sum to a weight greater than or equal to the majority paramter, 65. In this case, there are 10 possible combinations for a successful vote. Each number corresponds to a voter's signature on a transaction that represents a vote. A voter answers YES when they sign a vote transaction. Not signing is abstaining which is a vote of NO. The order of the voters in each solution does not matter.
 
 Successful Votes:
 
@@ -61,9 +63,16 @@ Successful Votes:
 [0, 1, 2, 3, 4]
 ```
 
-This method of voting can be advantagous because all possible outcomes must be calculated. There is no ambiguity. This potential benefit becomes an issue with this system  because it does not scale well with a large group. Each member is required to sign on the order of 2^N transactions, where N is the number of voters in the group. This problem becomes unweldly quickly. A simple solution for large voting groups is delegation via multisig wallets or with a trusted service provider. Advanced solutions may involve designing a singluar signature signing scheme for sets of transactions or GPU wallet signing nodes that brute force all the transactions. Both are well above the specifications of this proposal.
+This method of voting can be advantagous because all possible outcomes must be calculated. There is no ambiguity. This potential benefit becomes an issue within this system because it does not scale well with a large group. Each member is required to sign on the order of 2^N transactions, where N is the number of voters in the group. This problem becomes unweldly quickly.
 
-The vesting group information is stored inside the datum of a single vestor's vesting UTxO. This is done on purpose such that members of the voting group could be removed and voting power can be delegated. A member of the voting group being removed from the entire contract means they must be removed from every single voting group in each UTxO. This is why the endpoint is very open ended and only requires a successful vote. It is on the duty of the voter to inspect the voting transaction before signing.
+A simple solution for scaling that maintains the untradability of the right to vest and vote is voting delegation via multisig wallets. Advanced solutions may involve designing a singluar signature signing scheme for sets of transactions or GPU wallet signing nodes that brute force all the transactions. Both are well above the specifications of this proposal.
+
+The vesting group information is stored inside the datum of a single vestor's vesting UTxO. This is done on purpose such that members of the vesting and voting group could be removed. A member being removed from the entire contract means they must be removed from every single voting group in each UTxO. This is why the endpoint is very open ended and only requires a successful vote. It is on the duty of the voter to inspect the voting transaction before signing.
+
+
+## UTxO Level Customization
+
+Each UTxO inside the contract hash a specific type of datum that controls the entire vesting solution for that user. The datum is allowed to change via a successfull vest or vote.
 
 ```hs
 data CustomDatumType = CustomDatumType
@@ -80,7 +89,7 @@ data CustomDatumType = CustomDatumType
   , cdtDeadlineParams  :: ![Integer]
   -- ^ The deadline function parameters [deltaT, t0]
   , cdtRewardParams    :: ![Integer]
-  -- ^ The reward   function parameters [deltaV, v0]
+  -- ^ The reward function parameters [deltaV, v0]
   }
 ```
 
@@ -92,10 +101,9 @@ If the vesting period needs to be dynamic then the vestor or service provider ca
 
 The vesting payouts do roll over due to the style of the deadline parameters in this contract. Vesting groups can vote to change the deadline parameters such that a vestor is skipped if they please.
 
-
 ### Reward Example
 
-The reward parameters allow for constant or linearly decreasing reward function. Each reward payout follow the equation r = v0 - t * deltaV, where t, the cdtVestingStage parameter in the datum, is the number of times the vestor has retrieved a vestment. The term v0 is the intial value of the reward and deltaV is the decrease to the reward over time. Some initial calculations must be done to ensure correct parameters but of course a successful vote can correct a bad reward function. The function was chosen to model a typical return curve that decays over time but still allows for a user to get constant rewards. 
+The reward parameters allow for a constant or linearly decreasing reward function. Each reward payout follow the equation r = v0 - t * deltaV, where t is the cdtVestingStage parameter in the datum. This is the number of times the vestor has retrieved a vestment. The term v0 is the intial value of the reward and deltaV is the decrease to the reward over time. Some initial calculations must be done to ensure correct parameters but of course a successful vote can correct a bad reward function. The function was chosen to model a typical return curve that decays over time but still allows for a user to get constant rewards if required by the vesting group. 
 
 Similar to the deadline parameters, any non-linear behavior must be obtained with the voting endpoint.
 
