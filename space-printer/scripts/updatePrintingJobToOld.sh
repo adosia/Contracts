@@ -25,9 +25,8 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
     --tx-out-datum-embed-file data/datums/update_printing_pool_datum.json \
     --tx-out="$script_address $asset" | tr -dc '0-9')
-offer_price=$(cat data/datums/printing_pool_datum.json | jq .fields[0].fields[1].int)
-offer_and_min=$((${min_utxo} + ${offer_price}))
-customer_job_to_be_updated="${script_address} + ${offer_and_min} + ${asset}"
+
+customer_job_to_be_updated="${script_address} + ${min_utxo} + ${asset}"
 echo -e "\nRemoving A New Printing Job:\n" ${customer_job_to_be_updated}
 #
 # exit
@@ -49,7 +48,7 @@ CTXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in-collateral"' t
 COLLAT=${CTXIN::-19}
 HEXTXIN=${TXIN::-8}
 
-echo $COLLAT
+# echo $COLLAT
 
 echo -e "\033[0;36m Getting Script UTxO Information  \033[0m"
 ${cli} query utxo \
@@ -99,7 +98,7 @@ ${cli} transaction sign \
     --out-file tmp/tx.signed \
     --testnet-magic 1097911063
 #
-#
+# exit
 #
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \

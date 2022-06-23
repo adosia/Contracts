@@ -24,14 +24,12 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
     --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
     --tx-out="${script_address} ${asset}" | tr -dc '0-9')
-# Customer puts there offer in the utxo
-offer_price=$(cat data/datums/printing_pool_datum.json  | jq .fields[0].fields[1].int)
-offer_and_min=$((${min_utxo} + ${offer_price}))
-customer_job_to_be_printed="${script_address} + ${offer_and_min} + ${asset}"
+customer_job_to_be_printed="${script_address} + ${min_utxo} + ${asset}"
 echo -e "\nCreating A New Printing Job:\n" ${customer_job_to_be_printed}
 #
 # exit
 #
+echo
 echo -e "\033[0;36m Getting Customer UTxO Information  \033[0m"
 ${cli} query utxo \
     --testnet-magic 1097911063 \

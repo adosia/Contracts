@@ -11,8 +11,8 @@ script_address=$(${cli} address build --payment-script-file ${script_path} --tes
 echo -e "Script: " $script_address
 
 printer_address=$(cat wallets/printer/payment.addr)
-customer_address=$(cat wallets/customer/payment.addr)
 echo -e "\nPrinter: " ${printer_address}
+customer_address=$(cat wallets/customer/payment.addr)
 echo -e "Customer: " ${customer_address}
 
 # Define Asset to be printed here
@@ -24,9 +24,10 @@ asset="1 ${policy_id}.${token_hex}"
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --alonzo-era \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
+    --tx-out-datum-embed-file data/datums/offer_information_datum.json \
     --tx-out="$script_address $asset" | tr -dc '0-9')
-offer_price=$(cat data/datums/printing_pool_datum.json  | jq .fields[0].fields[1].int)
+
+offer_price=$(cat data/datums/offer_information_datum.json  | jq .fields[0].fields[5].int)
 offer_and_min=$((${min_utxo} + ${offer_price}))
 job_to_be_selected="${script_address} + ${offer_and_min} + ${asset}"
 echo -e "\nSelecting A Printing Job:\n" ${job_to_be_selected}
@@ -81,6 +82,7 @@ FEE=$(${cli} transaction build \
     --tx-out="${job_to_be_selected}" \
     --tx-out-datum-embed-file data/datums/offer_information_datum.json \
     --required-signer wallets/printer/payment.skey \
+    --required-signer wallets/customer/payment.skey \
     --testnet-magic 1097911063)
 
 IFS=':' read -ra VALUE <<< "$FEE"
@@ -93,6 +95,7 @@ echo -e "\033[1;32m Fee: \033[0m" $FEE
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
     --signing-key-file wallets/printer/payment.skey \
+    --signing-key-file wallets/customer/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
     --testnet-magic 1097911063

@@ -16,6 +16,9 @@ echo -e "Script: " $script_address
 printer_address=$(cat wallets/printer/payment.addr)
 echo -e "\nPrinter: " ${printer_address}
 
+customer_address=$(cat wallets/customer/payment.addr)
+echo -e "Customer: " ${customer_address}
+
 # Define Asset to be printed here
 policy_id="16af70780a170994e8e5e575f4401b1d89bddf7d1a11d6264e0b0c85"
 token_name="tBigTokenName12"
@@ -27,11 +30,16 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
     --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
     --tx-out="$script_address $asset" | tr -dc '0-9')
-offer_price=$(cat data/datums/printing_pool_datum.json  | jq .fields[0].fields[1].int)
-offer_and_min=$((${min_utxo} + ${offer_price}))
-job_to_be_selected="${script_address} + ${offer_and_min} + ${asset}"
-echo -e "\nSelecting A Printing Job:\n" ${job_to_be_selected}
 
+offer_price=$(cat data/datums/offer_information_datum.json  | jq .fields[0].fields[5].int)
+
+job_to_be_selected="${script_address} + ${min_utxo} + ${asset}"
+echo -e "\nSelecting A Printing Job:\n" ${job_to_be_selected}
+payment_return="${customer_address} + ${offer_price}"
+echo -e "\nReturning Payment:\n" ${payment_return}
+#
+# exit
+#
 echo -e "\033[0;36m Getting Printer UTxO Information  \033[0m"
 ${cli} query utxo \
     --testnet-magic 1097911063 \
@@ -75,10 +83,11 @@ FEE=$(${cli} transaction build \
     --tx-in ${HEXTXIN} \
     --tx-in-collateral ${COLLAT} \
     --tx-in ${SCRIPT_TXIN}  \
-    --tx-in-datum-file data/datums/printing_information_datum.json \
+    --tx-in-datum-file data/datums/offer_information_datum.json \
     --tx-in-redeemer-file data/redeemers/cancel_redeemer.json \
     --tx-out="${job_to_be_selected}" \
     --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
+    --tx-out="${payment_return}" \
     --required-signer wallets/printer/payment.skey \
     --tx-in-script-file ${script_path} \
     --testnet-magic 1097911063)
