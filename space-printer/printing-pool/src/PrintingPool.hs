@@ -45,7 +45,7 @@ import qualified PlutusTx
 import           PlutusTx.Prelude
 import           Plutus.Contract
 import qualified Plutus.V1.Ledger.Ada      as Ada
--- import qualified Plutus.V1.Ledger.Value    as Value
+import qualified Plutus.V1.Ledger.Value    as Value
 import qualified Plutus.V1.Ledger.Scripts  as Plutus
 import           DataTypes
 import           CheckFuncs
@@ -62,7 +62,8 @@ import           CheckFuncs
 -------------------------------------------------------------------------------
 -- | Create the contract parameters data object.
 -------------------------------------------------------------------------------
-data ContractParams = ContractParams {}
+newtype ContractParams = ContractParams
+  { poPolicyId :: CurrencySymbol }
 PlutusTx.makeLift ''ContractParams
 -------------------------------------------------------------------------------
 -- | Create the datum parameters data object.
@@ -97,7 +98,7 @@ PlutusTx.makeLift ''CustomRedeemerType
 -------------------------------------------------------------------------------
 {-# INLINABLE mkValidator #-}
 mkValidator :: ContractParams -> CustomDatumType -> CustomRedeemerType -> ScriptContext -> Bool
-mkValidator _ datum redeemer context =
+mkValidator ppp datum redeemer context =
   case datum of
     (PrintingPool ppt) ->
       case redeemer of
@@ -117,17 +118,19 @@ mkValidator _ datum redeemer context =
               ; let b = traceIfFalse "Incorrect Token Return" $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
               ; let c = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
               ; let d = traceIfFalse "Incorrect New State"    $ ppt == ppt'                                                -- change region codes only
-              ; all (==(True :: Bool)) [a,b,c,d]
+              ; let e = traceIfFalse "Wrong Purchase Order"   $ Value.valueOf validatingValue (poPolicyId ppp) (ppPOName ppt) == (1 :: Integer)
+              ; all (==(True :: Bool)) [a,b,c,d,e]
               }
             _ -> False
         Offer ->
           case embeddedDatum continuingTxOutputs of
             (OfferInformation oit) -> do
               { let newValue = validatingValue + Ada.lovelaceValueOf (oiOfferPrice oit)
-              ; let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (ppCustomerPKH ppt) && txSignedBy info (oiPrinterPKH oit) -- The printer must sign it
-              ; let b = traceIfFalse "Offer: Incrt Tkn Cont"  $ checkContTxOutForValue continuingTxOutputs newValue                       -- token must go back to script
-              ; let c = traceIfFalse "Incorrect New State"    $ ppt === oit                                                               -- printer must change the datum 
-              ; all (==(True :: Bool)) [a,b,c]
+              ; let a = traceIfFalse "Incorrect Signer"      $ txSignedBy info (ppCustomerPKH ppt) && txSignedBy info (oiPrinterPKH oit) -- The printer must sign it
+              ; let b = traceIfFalse "Offer: Incrt Tkn Cont" $ checkContTxOutForValue continuingTxOutputs newValue                       -- token must go back to script
+              ; let c = traceIfFalse "Incorrect New State"   $ ppt === oit                                                               -- printer must change the datum 
+              ; let d = traceIfFalse "Wrong Purchase Order"  $ Value.valueOf validatingValue (poPolicyId ppp) (ppPOName ppt) == (1 :: Integer)
+              ; all (==(True :: Bool)) [a,b,c,d]
               }
             _ -> False
         _ -> False
@@ -146,7 +149,8 @@ mkValidator _ datum redeemer context =
               ; let c = traceIfFalse "Incorrect Token Cont" $ checkContTxOutForValue continuingTxOutputs newValue        -- token must go back to script
               ; let d = traceIfFalse "Incorrect Token Chan" $ checkTxOutForValueAtAddr txOutputs customerAddr offerValue -- token must go back to customer
               ; let e = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-              ; all (==(True :: Bool)) [a,b,c,d,e]
+              ; let f = traceIfFalse "Wrong Purchase Order" $ Value.valueOf validatingValue (poPolicyId ppp) (oiPOName oit) == (1 :: Integer)
+              ; all (==(True :: Bool)) [a,b,c,d,e,f]
               }
             _ -> False
         Remove ->
@@ -163,7 +167,8 @@ mkValidator _ datum redeemer context =
               ; let d = traceIfFalse "Incorrect Token Chan"  $ checkTxOutForValueAtAddr txOutputs customerAddr offerValue -- token must go back to customer
               ; let e = traceIfFalse "SingleScript Inputs"   $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
               ; let f = traceIfFalse "Job Is Still Printing" $ not $ overlaps (lockInterval (oiPrintTime oit)) validityRange
-              ; all (==(True :: Bool)) [a,b,c,d,e,f]
+              ; let g = traceIfFalse "Wrong Purchase Order"  $ Value.valueOf validatingValue (poPolicyId ppp) (oiPOName oit) == (1 :: Integer)
+              ; all (==(True :: Bool)) [a,b,c,d,e,f,g]
               }
             _ -> False
         Ship ->
@@ -173,7 +178,8 @@ mkValidator _ datum redeemer context =
               ; let b = traceIfFalse "Incorrect Token Cont" $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
               ; let c = traceIfFalse "Incorrect New State"  $ oit === sit                                                -- job is done printing and is now shipping
               ; let d = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-              ; all (==(True :: Bool)) [a,b,c,d]
+              ; let e = traceIfFalse "Wrong Purchase Order" $ Value.valueOf validatingValue (poPolicyId ppp) (oiPOName oit) == (1 :: Integer)
+              ; all (==(True :: Bool)) [a,b,c,d,e]
               }
             _ -> False
         _ -> False
@@ -192,7 +198,8 @@ mkValidator _ datum redeemer context =
           ; let b = traceIfFalse "Incorrect Token payout" $ checkTxOutForValueAtAddr txOutputs customerAddr newValue  -- customer gets token back
           ; let c = traceIfFalse "Incorrect Price payout" $ checkTxOutForValueAtAddr txOutputs printerAddr offerValue -- printer gets paid
           ; let d = traceIfFalse "Single Script Inputs"   $ checkForNScriptInputs txInputs (1 :: Integer)             -- single script input
-          ; all (==(True :: Bool)) [a,b,c,d]
+          ; let e = traceIfFalse "Wrong Purchase Order"   $ Value.valueOf validatingValue (poPolicyId ppp) (siPOName sit) == (1 :: Integer)
+          ; all (==(True :: Bool)) [a,b,c,d,e]
           }
         _ -> False
   where
@@ -213,7 +220,7 @@ mkValidator _ datum redeemer context =
       case findOwnInput context of
         Nothing     -> traceError "No Input to Validate."  -- This should never be hit.
         Just input  -> txOutValue $ txInInfoResolved input
-
+    
     embeddedDatum :: [TxOut] -> CustomDatumType
     embeddedDatum [] = datum
     embeddedDatum (txOut:txOuts) =
@@ -246,7 +253,8 @@ typedValidator cp = Scripts.mkTypedValidator @Typed
 -- | Define The Token Sale Parameters Here
 -------------------------------------------------------------------------------
 validator :: Plutus.Validator
-validator = Scripts.validatorScript (typedValidator $ ContractParams {})
+validator = Scripts.validatorScript (typedValidator params)
+  where params = ContractParams { poPolicyId = "088e1964087c9a0415439fa641184f882f422b74c0ea77995dd765bf" }
 -------------------------------------------------------------------------------
 -- | The code below is required for the plutus script compile.
 -------------------------------------------------------------------------------

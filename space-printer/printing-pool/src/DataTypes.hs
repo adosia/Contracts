@@ -30,10 +30,15 @@ module DataTypes
   , ppCustomerPKH
   , ppCustomerSC
   , ppRegionCode
+  , ppPOName
   , OfferInformationType
   , oiCustomerPKH
-  , oiOfferPrice
+  , oiCustomerSC
+  , oiRegionCode
+  , oiPOName
   , oiPrinterPKH
+  , oiPrinterSC
+  , oiOfferPrice
   , oiPrintTime
   , ShippingInfoType
   , siCustomerPKH
@@ -41,6 +46,7 @@ module DataTypes
   , siPrinterPKH
   , siPrinterSC
   , siOfferPrice
+  , siPOName
   , (===)
   ) where
 import           Ledger                    hiding ( singleton )
@@ -70,6 +76,8 @@ data PrintingPoolType = PrintingPoolType
   -- ^ The Customer's staking credential.
   , ppRegionCode  :: ![Integer]
   -- ^ The lovelace amount for the printer.
+  , ppPOName      :: !TokenName
+  -- ^ The Purchase Order Name.
   }
     deriving stock (Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema)
@@ -79,9 +87,10 @@ PlutusTx.makeLift ''PrintingPoolType
 -- old == new
 instance Eq PrintingPoolType where
   {-# INLINABLE (==) #-}
-  a == b = ( ppCustomerPKH a == ppCustomerPKH b) &&
-           ( ppCustomerSC  a == ppCustomerSC  b) &&
-           ( ppRegionCode  a /= ppRegionCode  b)
+  a == b = ( ppCustomerPKH a == ppCustomerPKH b ) &&
+           ( ppCustomerSC  a == ppCustomerSC  b ) &&
+           ( ppRegionCode  a /= ppRegionCode  b ) &&
+           ( ppPOName      a == ppPOName      b )
 
 -------------------------------------------------------------------------------
 -- | Make Offer Data Object
@@ -93,6 +102,8 @@ data OfferInformationType = OfferInformationType
   -- ^ The Customer's staking credential.
   , oiRegionCode  :: ![Integer]
   -- ^ The lovelace amount for the printer.
+  , oiPOName      :: !TokenName
+  -- ^ The Purchase Order Name.
   , oiPrinterPKH  :: !PubKeyHash
   -- ^ The printer's payment public key hash.
   , oiPrinterSC   :: !PubKeyHash
@@ -110,9 +121,10 @@ PlutusTx.makeLift ''OfferInformationType
 -- multi sig offer equiv instance
 instance Equiv PrintingPoolType OfferInformationType where
   {-# INLINABLE (===) #-}
-  a === b = ( ppCustomerPKH a == oiCustomerPKH b) &&
-            ( ppCustomerSC  a == oiCustomerSC  b) &&
-            ( ppRegionCode  a == oiRegionCode  b)
+  a === b = ( ppCustomerPKH a == oiCustomerPKH b ) &&
+            ( ppCustomerSC  a == oiCustomerSC  b ) &&
+            ( ppRegionCode  a == oiRegionCode  b ) &&
+            ( ppPOName      a == oiPOName      b )
 
 -------------------------------------------------------------------------------
 -- | Shipping Data Object
@@ -128,6 +140,8 @@ data ShippingInfoType = ShippingInfoType
   -- ^ The Customer's staking credential.
   , siOfferPrice  :: !Integer
   -- ^ The lovelace amount for the printer.
+  , siPOName      :: !TokenName
+  -- ^ The Purchase Order Name.
   }
     deriving stock (Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema)
@@ -137,8 +151,9 @@ PlutusTx.makeLift ''ShippingInfoType
 -- print to ship equiv
 instance Equiv OfferInformationType ShippingInfoType where
   {-# INLINABLE (===) #-}
-  a === b = ( oiCustomerPKH a == siCustomerPKH b) &&
-            ( oiCustomerSC  a == siCustomerSC  b) &&
-            ( oiPrinterPKH  a == siPrinterPKH  b) &&
-            ( oiPrinterSC   a == siPrinterSC   b) &&
-            ( oiOfferPrice  a == siOfferPrice  b)
+  a === b = ( oiCustomerPKH a == siCustomerPKH b ) &&
+            ( oiCustomerSC  a == siCustomerSC  b ) &&
+            ( oiPrinterPKH  a == siPrinterPKH  b ) &&
+            ( oiPrinterSC   a == siPrinterSC   b ) &&
+            ( oiOfferPrice  a == siOfferPrice  b ) &&
+            ( oiPOName      a == siPOName      b )
