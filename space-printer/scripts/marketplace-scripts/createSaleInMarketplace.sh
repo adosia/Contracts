@@ -25,7 +25,7 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --tx-out-datum-embed-file data/datum/token_sale_datum.json \
     --tx-out="${script_address} ${asset}" | tr -dc '0-9')
 token_to_be_sold="${script_address} + ${min_utxo} + ${asset}"
-echo -e "\nCreating A New Token Sale:\n" ${token_to_be_sold}
+echo -e "\nCreating A New Token Sale In The Marketplace:\n" ${token_to_be_sold}
 #
 # exit
 #
@@ -47,9 +47,8 @@ HEXTXIN=${TXIN::-8}
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
-    --alonzo-era \
+    --babbage-era \
     --protocol-params-file tmp/protocol.json \
-    --invalid-hereafter 99999999 \
     --out-file tmp/tx.draft \
     --change-address ${designer_address} \
     --tx-in ${HEXTXIN} \

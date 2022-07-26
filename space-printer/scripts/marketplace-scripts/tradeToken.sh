@@ -7,10 +7,11 @@ cli=$(cat path_to_cli.sh)
 
 # Addresses
 sender_address=$(cat wallets/customer/payment.addr)
-receiver_address=$(cat wallets/designer/payment.addr)
+# receiver_address=$(cat wallets/designer/payment.addr)
+receiver_address="addr_test1qrp98gmajj0p423gkf35q2c890m7ygr6az82htthwhehu9qtq9jtz4znnkg3d7zhp0zluwpea5x4xjkxyv3kxmdlvpaqr8lhr3"
 
 # Define Asset to be printed here
-asset="1 16af70780a170994e8e5e575f4401b1d89bddf7d1a11d6264e0b0c85.74426967546f6b656e4e616d653132"
+asset="1 acdcb6494ba64a727e67dc1043e79722e2d331fc4bc99842414a7549.61737472696e676865726531"
 CHANGE_ASSET=""
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
@@ -41,16 +42,13 @@ HEXTXIN=${TXIN::-8}
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
-    --alonzo-era \
+    --babbage-era \
     --protocol-params-file tmp/protocol.json \
-    --invalid-hereafter 99999999 \
     --out-file tmp/tx.draft \
     --change-address ${sender_address} \
     --tx-in ${HEXTXIN} \
     --tx-out="${token_to_be_traded}" \
     --testnet-magic 1097911063)
-    
-    # --tx-out="${change_return_out}" \
 
 IFS=':' read -ra VALUE <<< "${FEE}"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"

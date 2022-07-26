@@ -46,6 +46,7 @@ library
   hs-source-dirs:       src
 
   exposed-modules:      InvoiceMinting
+                        TokenHelper
 
   build-depends:        bytestring
                       , cardano-api

@@ -60,7 +60,7 @@ integerToHex num =  convertToHex base16 ""
 -- Converts any Integer into base 10 (Integer) String. 101 -> "101"
 -------------------------------------------------------------------------------
 integerToInteger :: Integer -> BuiltinByteString
-integerToInteger num =  convertToHex base16 ""
+integerToInteger num = if num == 0 then "0" else convertToHex base16 ""
   where
     base16 :: [Integer]
     base16 = baseQ num 10 []

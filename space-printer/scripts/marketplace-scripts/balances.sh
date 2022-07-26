@@ -4,7 +4,6 @@ set -e
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 
-wallets="wallets"
 script_path="../../marketplace-contract/marketplace_contract.plutus"
 
 script=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 1097911063)
@@ -14,6 +13,7 @@ customer=$(cat wallets/customer/payment.addr)
 printer=$(cat wallets/printer/payment.addr)
 
 echo
+${cli} query protocol-parameters --testnet-magic 1097911063 --out-file tmp/protocol.json
 ${cli} query tip --testnet-magic 1097911063 | jq
 
 echo

@@ -89,9 +89,14 @@ mkPolicy mp redeemer context = do
     info :: TxInfo
     info = scriptContextTxInfo context
 
+    redeemer' :: CustomRedeemerType
+    redeemer' = PlutusTx.unsafeFromBuiltinData @CustomRedeemerType redeemer
+
+
     txInputs :: [TxInInfo]
     txInputs = txInfoInputs info
 
+    -- find the first occurance of a datumhash, there should only be one
     checkInputs :: [TxInInfo] -> Maybe DatumHash
     checkInputs [] = Nothing
     checkInputs (x:xs) =
@@ -99,6 +104,7 @@ mkPolicy mp redeemer context = do
         then txOutDatumHash (txInInfoResolved x)
         else checkInputs xs
 
+    -- ensures that the mint redeemer is equal to the datumhash of the input
     checkInputDatum :: Bool
     checkInputDatum =
       case checkInputs txInputs of
@@ -126,9 +132,11 @@ mkPolicy mp redeemer context = do
     checkVal :: Bool
     checkVal = traceIfFalse "Incorrect Script Amount" $ Value.valueOf valueAtValidator (mStartPolicy redeemer') (mStartName redeemer') == (1 :: Integer)
 
+    -- the tx out going to the locking script datum hash
     datumHashAtValidator :: DatumHash
     datumHashAtValidator = fst $ head $ scriptOutputsAt (mpValidatorHash mp) info
 
+    -- ensures that the outbound datum hash has the correct form.
     checkOutputDatum :: Bool
     checkOutputDatum =
       case findDatumHash (Datum $ PlutusTx.toBuiltinData d) info of
@@ -146,9 +154,6 @@ mkPolicy mp redeemer context = do
               , mPrefixName  = mPrefixName  redeemer'
               , mPoPrice     = mPoPrice     redeemer'
               }
-
-    redeemer' :: CustomRedeemerType
-    redeemer' = PlutusTx.unsafeFromBuiltinData @CustomRedeemerType redeemer
 
     checkPolicyId :: CurrencySymbol ->  Bool
     checkPolicyId cs = traceIfFalse "Incorrect Policy Id" $ cs == ownCurrencySymbol context
@@ -173,7 +178,7 @@ policy mp = mkMintingPolicyScript ($$(PlutusTx.compile [|| Scripts.wrapMintingPo
 plutusScript :: Script
 plutusScript = unMintingPolicyScript $ policy params
   where
-    params = MintParams { mpValidatorHash = "6e3e16c486efbac98aaa646510f31e794e544622f745fb339691274e" }
+    params = MintParams { mpValidatorHash = "4bc0dfe022baf7fab4a48e00368c239524ca4235911be9cd7c5c7c55" }
 
 validator :: Validator
 validator = Validator plutusScript

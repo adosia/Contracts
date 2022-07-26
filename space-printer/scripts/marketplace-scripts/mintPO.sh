@@ -15,7 +15,7 @@ designer_address=$(cat wallets/designer/payment.addr)
 #
 policy_id=$(cat ../../invoice-minting/policy.id)
 #
-name=$(echo -n "astringhere1" | xxd -ps)
+name=$(echo -n "PurchaseOrder_1" | xxd -ps)
 
 start_policy_id="16af70780a170994e8e5e575f4401b1d89bddf7d1a11d6264e0b0c85"
 token_name="tBigTokenName12"
@@ -35,11 +35,11 @@ UTXO_VALUE=$(${cli} transaction calculate-min-required-utxo \
     --tx-out="${customer_address} ${MINT_ASSET}" | tr -dc '0-9')
 customer_address_out="${customer_address} + ${UTXO_VALUE} + ${MINT_ASSET}"
 
-profit_address_out="${designer_address} + 10000000"
+designer_address_out="${designer_address} + 10000000"
 
 echo "Script OUTPUT: "${script_address_out}
-echo "Mint OUTPUT: "${customer_address_out}
-echo "Profit OUTPUT: "${profit_address_out}
+echo "Customer OUTPUT: "${customer_address_out}
+echo "Designer OUTPUT: "${designer_address_out}
 
 #
 # exit
@@ -80,21 +80,20 @@ script_tx_in=${TXIN::-8}
 # exit
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
-    --alonzo-era \
+    --babbage-era \
     --protocol-params-file tmp/protocol.json \
-    --invalid-hereafter 99999999 \
     --out-file tmp/tx.draft \
     --change-address ${customer_address} \
+    --tx-in-collateral ${collateral_tx_in} \
     --tx-in ${buyer_tx_in} \
     --tx-in ${script_tx_in} \
-    --tx-in-collateral ${collateral_tx_in} \
+    --tx-in-script-file ${script_path} \
     --tx-in-datum-file data/datum/token_sale_datum.json \
     --tx-in-redeemer-file data/redeemer/mint_redeemer.json \
-    --tx-out="${profit_address_out}" \
+    --tx-out="${designer_address_out}" \
     --tx-out="${customer_address_out}" \
     --tx-out="${script_address_out}" \
     --tx-out-datum-embed-file data/datum/token_sale_datum2.json \
-    --tx-in-script-file ${script_path} \
     --mint="${MINT_ASSET}" \
     --mint-redeemer-file data/datum/token_sale_datum.json \
     --mint-script-file ${mint_path} \
