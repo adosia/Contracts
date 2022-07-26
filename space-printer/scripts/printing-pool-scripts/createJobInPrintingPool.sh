@@ -4,7 +4,7 @@ set -e
 # SET UP VARS HERE
 export CARDANO_NODE_SOCKET_PATH=$(cat pathToSocket.sh)
 cli=$(cat pathToCli.sh)
-script_path="../printing-pool/printing_pool.plutus"
+script_path="../../printing-pool/printing_pool.plutus"
 
 # Addresses
 script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 1097911063)
@@ -14,9 +14,8 @@ customer_address=$(cat wallets/customer/payment.addr)
 echo -e "\nCustomer:" ${customer_address}
 
 # Define Asset to be printed here
-policy_id="16af70780a170994e8e5e575f4401b1d89bddf7d1a11d6264e0b0c85"
-token_name="tBigTokenName12"
-token_hex=$(echo -n ${token_name} | xxd -ps)
+policy_id="088e1964087c9a0415439fa641184f882f422b74c0ea77995dd765bf"
+token_hex="50757263686173654f726465725f31"
 asset="1 ${policy_id}.${token_hex}"
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
@@ -47,9 +46,8 @@ HEXTXIN=${TXIN::-8}
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
-    --alonzo-era \
+    --babbage-era \
     --protocol-params-file tmp/protocol.json \
-    --invalid-hereafter 99999999 \
     --out-file tmp/tx.draft \
     --change-address ${customer_address} \
     --tx-in ${HEXTXIN} \

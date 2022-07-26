@@ -1,4 +1,5 @@
 cabal clean
-cabal build -w ghc-8.10.4
+cabal update
+cabal build -w ghc-8.10.7
 cabal run printing-pool
 echo "DONE"

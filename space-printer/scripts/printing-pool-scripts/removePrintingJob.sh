@@ -6,10 +6,9 @@ export CARDANO_NODE_SOCKET_PATH=$(cat pathToSocket.sh)
 cli=$(cat pathToCli.sh)
 
 # Paths
-wallets="wallets"
-script_path="../printing-pool/printing_pool.plutus"
 
 # Addresses
+script_path="../../printing-pool/printing_pool.plutus"
 script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 1097911063)
 echo -e "Script: " $script_address
 
@@ -17,9 +16,8 @@ customer_address=$(cat wallets/customer/payment.addr)
 echo -e "Customer: " ${customer_address}
 
 # Define Asset to be printed here
-policy_id="16af70780a170994e8e5e575f4401b1d89bddf7d1a11d6264e0b0c85"
-token_name="tBigTokenName12"
-token_hex=$(echo -n ${token_name} | xxd -ps)
+policy_id="088e1964087c9a0415439fa641184f882f422b74c0ea77995dd765bf"
+token_hex="50757263686173654f726465725f31"
 asset="1 ${policy_id}.${token_hex}"
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
@@ -28,7 +26,7 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
     --tx-out="$script_address $asset" | tr -dc '0-9')
 
-offer_price=$(cat data/datums/offer_information_datum.json  | jq .fields[0].fields[5].int)
+offer_price=$(cat data/datums/offer_information_datum.json  | jq .fields[0].fields[6].int)
 
 job_to_be_selected="${script_address} + ${min_utxo} + ${asset}"
 echo -e "\nSelecting A Printing Job:\n" ${job_to_be_selected}
@@ -70,11 +68,11 @@ TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/script_ut
 SCRIPT_TXIN=${TXIN::-8}
 
 currentSlot=$(${cli} query tip --testnet-magic 1097911063 | jq .slot)
-finalSlot=$(($currentSlot + 400))
+finalSlot=$(($currentSlot + 500))
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
-    --alonzo-era \
+    --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --invalid-before ${currentSlot} \
     --invalid-hereafter ${finalSlot} \
@@ -83,13 +81,13 @@ FEE=$(${cli} transaction build \
     --tx-in ${HEXTXIN} \
     --tx-in-collateral ${COLLAT} \
     --tx-in ${SCRIPT_TXIN}  \
+    --tx-in-script-file ${script_path} \
     --tx-in-datum-file data/datums/offer_information_datum.json \
     --tx-in-redeemer-file data/redeemers/remove_redeemer.json \
+    --tx-out="${payment_return}" \
     --tx-out="${job_to_be_selected}" \
     --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
-    --tx-out="${payment_return}" \
     --required-signer wallets/customer/payment.skey \
-    --tx-in-script-file ${script_path} \
     --testnet-magic 1097911063)
 
 IFS=':' read -ra VALUE <<< "$FEE"
