@@ -16,18 +16,20 @@ policy_id="57fca08abbaddee36da742a839f7d83a7e1d2419f1507fcbf3916522"
 token_name="CHOC"
 amount=2000
 token_hex=$(echo -n ${token_name} | xxd -ps)
+
+# assets going in and out
 sc_asset="${amount} ${policy_id}.${token_hex}"
-change_asset="8000 ${policy_id}.${token_hex}"
+change_asset="7001 ${policy_id}.${token_hex}"
 
 # minimum ada to get in
-sc_min_value=$(${cli} transaction calculate-min-required-utxo \
+min_value=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
     --tx-out-datum-embed-file data/create_vestment_datum.json \
     --tx-out="${script_address} ${sc_asset}" | tr -dc '0-9')
-sc_address_out="${script_address} + ${sc_min_value} + ${sc_asset}"
-change_address_out="${issuer_address} + ${sc_min_value} + ${change_asset}"
-return_address_out="${issuer_address} + ${sc_min_value} + 100 48664e8d76f2b15606677bd117a3eac9929c378ac547ed295518dfd5.74426967546f6b656e4e616d653032"
+sc_address_out="${script_address} + ${min_value} + ${sc_asset}"
+change_address_out="${issuer_address} + ${min_value} + ${change_asset}"
 echo "Script OUTPUT: "${sc_address_out}
+echo "Change OUTPUT: "${change_address_out}
 
 # exit
 
@@ -53,7 +55,6 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${issuer_address} \
     --tx-in ${issuer_tx_in} \
-    --tx-out="${return_address_out}" \
     --tx-out="${change_address_out}" \
     --tx-out="${sc_address_out}" \
     --tx-out-datum-embed-file data/create_vestment_datum.json \

@@ -10,6 +10,9 @@ issuer_address=$(cat wallets/issuer-wallet/payment.addr)
 vestor_address=$(cat wallets/vestor-wallet/payment.addr)
 provider_address=$(cat wallets/provider-wallet/payment.addr)
 
+echo
+${cli} query tip --testnet-magic 1097911063 | jq
+
 echo -e "\nScript Address:" ${script_address}
 ${cli} query utxo --address ${script_address} --testnet-magic 1097911063
 

@@ -46,6 +46,8 @@ library
   hs-source-dirs:       src
 
   exposed-modules:      PrintingPool
+                        DataTypes
+                        CheckFuncs
 
   build-depends:        bytestring
                       , cardano-api

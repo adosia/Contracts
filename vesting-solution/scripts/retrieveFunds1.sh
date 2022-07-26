@@ -15,10 +15,10 @@ provider_address=$(cat wallets/provider-wallet/payment.addr)
 # Token Information
 policy_id="57fca08abbaddee36da742a839f7d83a7e1d2419f1507fcbf3916522"
 token_name="CHOC"
-amount=10000
+amount=1000
 token_hex=$(echo -n ${token_name} | xxd -ps)
 vestor_asset="1000 ${policy_id}.${token_hex}"
-sc_asset="9000 ${policy_id}.${token_hex}"
+sc_asset="1000 ${policy_id}.${token_hex}"
 
 # minimum ada to get in
 vestor_min_value=$(${cli} transaction calculate-min-required-utxo \

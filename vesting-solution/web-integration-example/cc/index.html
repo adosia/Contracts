@@ -7,7 +7,7 @@
     <title>Vesting</title>
     <script src='https://bundle.run/buffer@6.0.3'></script>
     <script src='https://cdn.jsdelivr.net/npm/@stricahq/typhonjs@1.1.3/dist/index.min.js'></script>
-    <script src='https://cdn.jsdelivr.net/npm/bignumber.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/bignumber.js@9.0.2/bignumber.min.js'></script>
     <script src='https://cdn.jsdelivr.net/npm/@stricahq/cbors@1.0.0/dist/index.min.js'></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src='protocolParamters.js'></script>
@@ -255,9 +255,6 @@
                     // THIS IS INCORRECT,, no fee is 34 ADA
                     const feeEstimate = tx.calculateFee([txOutput(getAddress(typhonjs.utils.getAddressFromHex(basePKH).addressBech32), leftoverLovelace, [])])
                     console.log('FEE', feeEstimate);
-                    // tx.addOutput(txOutput(getAddress(typhonjs.utils.getAddressFromHex(basePKH).addressBech32), leftoverLovelace - feeEstimate, []))
-                    // tx.setFee(new BigNumber(feeEstimate.toString()))
-
                     tx.addOutput(txOutput(getAddress(typhonjs.utils.getAddressFromHex(basePKH).addressBech32), leftoverLovelace - 2000000, []))
                     tx.setFee(new BigNumber(2000000))
 
@@ -281,10 +278,6 @@
                         const txsigned = fixedTTLTxBody.replace('0080', signed.slice(2))
                         console.log('TXSIGNED:', txsigned)
 
-                        // console.log('Submitting Tx')
-                        // const txid = await wallet.submitTx(txsigned)
-                        // console.log('TXID:', txid)
-                        
                         console.log('DONE!');
                     } catch (error) {
                         console.log("TX HAS BEEN CANCELLED")
@@ -293,76 +286,7 @@
                 } else {
                     alert('The Value Is Still Locked.')
                 }
-
-               
-                // // // change TTL hack
-                // let currentSlot = getLatestSlot(apikey);
-                // const start = buffer.Buffer.from(cbors.Encoder.encode(currentSlot)).toString('hex')
-                // let fixedTTLTxBody = txbody.payload
-                // fixedTTLTxBody = fixedTTLTxBody.replace("031a3b9ac9ff", "08" + start)
-
-                // //
-                // try {
-                //     const signed = await wallet.signTx(fixedTTLTxBody, true, false);
-                //     console.log('SIGNATURE:', signed)
-
-                //     // add in the the signature into the tx body
-                //     const txsigned = fixedTTLTxBody.replace('0080', signed.slice(2))
-                //     console.log('TXSIGNED:', txsigned)
-
-                //     console.log('Submitting Tx')
-                //     const txid = await wallet.submitTx(txsigned)
-                //     console.log('TXID:', txid)
-                    
-                //     console.log('DONE!');
-                // } catch (error) {
-                //     console.log("TX HAS BEEN CANCELLED")
-                //     console.log("", error)
-                // }
             } // end of else
-
-            
-            
-
-
-           
-
-            
-
-            // // create signer object
-            // const signer = {hash: paymentPKH, type: 0 }
-            // const tx = await generalizedPayment(inputs, outputs, collateral, [signer], 999999999)
-            // console.log('TX:', tx);
-            
-            // // Calculate the fee here
-            // tx.setFee(new BigNumber("1000000"))
-
-            // console.log('Building Tx')
-            // const txbody = tx.buildTransaction()
-            
-            // console.log('TXBODY:',txbody.payload)
-            // let fixedTTLTxBody = txbody.payload;
-
-            // // Attempt to change TTL hacks
-            // //
-            // // let currentSlot = 56511995
-            // // let finalSlot = 59511995
-            // // let fixedTTLTxBody = txbody.payload.replace("84a7", "84a8")
-            // // console.log(fixedTTLTxBody)
-            // // fixedTTLTxBody = fixedTTLTxBody.replace("031a3b9ac9ff", "031a"+finalSlot.toString(16)+"081a"+currentSlot.toString(16))
-
-            // const signed = await wallet.signTx(fixedTTLTxBody, true, false);
-            // console.log('SIGNATURE:', signed)
-
-            // const txsigned = fixedTTLTxBody.replace('0080', signed.slice(2))
-            // console.log('TXSIGNED:', txsigned)
-
-            // // txsigned is required for sendback
-            // console.log('Submitting Tx')
-            // const txid = await wallet.submitTx(txsigned)
-            // console.log('TXID:', txid)
-            // console.log('DONE!');
-
         }); // end of complete sale
     });
 </script>

@@ -10,9 +10,9 @@ vestor_address=$(cat wallets/vestor-wallet/payment.addr)
 issuer_address=$(cat wallets/issuer-wallet/payment.addr)
 
 # Define Asset to be printed here
-policy_id="57fca08abbaddee36da742a839f7d83a7e1d2419f1507fcbf3916522"
-token_name="CHOC"
-amount=10000
+policy_id="48664e8d76f2b15606677bd117a3eac9929c378ac547ed295518dfd5"
+token_name="tBigTokenName02"
+amount=100
 token_hex=$(echo -n ${token_name} | xxd -ps)
 asset="${amount} ${policy_id}.${token_hex}"
 
