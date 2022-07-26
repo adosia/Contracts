@@ -45,7 +45,7 @@ import qualified PlutusTx
 import           PlutusTx.Prelude
 import           Plutus.Contract
 import qualified Plutus.V1.Ledger.Ada      as Ada
-import qualified Plutus.V1.Ledger.Value    as Value
+-- import qualified Plutus.V1.Ledger.Value    as Value
 import qualified Plutus.V1.Ledger.Scripts  as Plutus
 import           DataTypes
 import           CheckFuncs
@@ -67,14 +67,12 @@ PlutusTx.makeLift ''ContractParams
 -------------------------------------------------------------------------------
 -- | Create the datum parameters data object.
 -------------------------------------------------------------------------------
-data CustomDatumType =  PrintingPool        PrintingPoolType        |
-                        OfferInformation    OfferInformationType    |
-                        PrintingInformation PrintingInfoType        |
-                        CurrentlyShipping   ShippingInfoType
+data CustomDatumType =  PrintingPool      PrintingPoolType        |
+                        OfferInformation  OfferInformationType    |
+                        CurrentlyShipping ShippingInfoType
 PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ('PrintingPool,        0)
                                               , ('OfferInformation,    1)
-                                              , ('PrintingInformation, 2)
-                                              , ('CurrentlyShipping,   3)
+                                              , ('CurrentlyShipping,   2)
                                               ]
 PlutusTx.makeLift ''CustomDatumType
 -------------------------------------------------------------------------------
@@ -84,16 +82,14 @@ data CustomRedeemerType = Remove |
                           Update |
                           Offer  |
                           Accept |
-                          Deny   |
                           Cancel |
                           Ship
 PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ('Remove,  0)
                                                 , ('Update,  1)
                                                 , ('Offer,   2)
                                                 , ('Accept,  3)
-                                                , ('Deny,    4)
-                                                , ('Cancel,  5)
-                                                , ('Ship,    6)
+                                                , ('Cancel,  4)
+                                                , ('Ship,    5)
                                                 ]
 PlutusTx.makeLift ''CustomRedeemerType
 -------------------------------------------------------------------------------
@@ -106,97 +102,76 @@ mkValidator _ datum redeemer context =
     (PrintingPool ppt) ->
       case redeemer of
         Remove -> do
-          { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (ppCustomerPKH ppt)                                   -- customer must sign it
-          ; let b = traceIfFalse "Incorrect Token Return" $ checkTxOutForValueAtPKH txOutputs (ppCustomerPKH ppt) validatingValue -- token must go back to customer
-          ; let c = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)                         -- single script input
+          { let customerPkh  = ppCustomerPKH ppt
+          ; let customerSc   = ppCustomerSC  ppt
+          ; let customerAddr = createAddress customerPkh customerSc
+          ; let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info customerPkh                                     -- customer must sign it
+          ; let b = traceIfFalse "Incorrect Token Return" $ checkTxOutForValueAtAddr txOutputs customerAddr validatingValue -- token must go back to customer
+          ; let c = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)                   -- single script input
           ; all (==(True :: Bool)) [a,b,c]
           }
-        Update -> 
+        Update ->
           case embeddedDatum continuingTxOutputs of
             (PrintingPool ppt') -> do
-              { let contValue = validatingValue - Ada.lovelaceValueOf (ppOfferPrice ppt) + Ada.lovelaceValueOf (ppOfferPrice ppt')
-              ; let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (ppCustomerPKH ppt)                                   -- customer must sign it
-              ; let b = traceIfFalse "Incorrect Token Return" $ checkContTxOutForValue continuingTxOutputs contValue                  -- token must go back to script
-              ; let c = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)                         -- single script input
-              ; let d = traceIfFalse "Incorrect New State"    $ ppt == ppt'                                                           -- printer must change the datum 
-              ; let e = traceIfFalse "Not Enough ADA On UTXO" $ Value.valueOf contValue Ada.adaSymbol Ada.adaToken > ppOfferPrice ppt'
-              ; all (==(True :: Bool)) [a,b,c,d,e]
+              { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (ppCustomerPKH ppt)                        -- customer must sign it
+              ; let b = traceIfFalse "Incorrect Token Return" $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
+              ; let c = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
+              ; let d = traceIfFalse "Incorrect New State"    $ ppt == ppt'                                                -- change region codes only
+              ; all (==(True :: Bool)) [a,b,c,d]
               }
             _ -> False
-        Offer ->  
+        Offer ->
           case embeddedDatum continuingTxOutputs of
             (OfferInformation oit) -> do
-              { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (oiPrinterPKH oit)                         -- The printer must sign it
-              ; let b = traceIfFalse "Offer: Incrt Tkn Cont"  $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
-              ; let c = traceIfFalse "Incorrect New State"    $ ppt === oit                                                -- printer must change the datum 
-              ; let d = traceIfFalse "Not Enough ADA On UTXO" $ Value.valueOf validatingValue Ada.adaSymbol Ada.adaToken > ppOfferPrice ppt
-              ; all (==(True :: Bool)) [a,b,c,d]
+              { let newValue = validatingValue + Ada.lovelaceValueOf (oiOfferPrice oit)
+              ; let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (ppCustomerPKH ppt) && txSignedBy info (oiPrinterPKH oit) -- The printer must sign it
+              ; let b = traceIfFalse "Offer: Incrt Tkn Cont"  $ checkContTxOutForValue continuingTxOutputs newValue                       -- token must go back to script
+              ; let c = traceIfFalse "Incorrect New State"    $ ppt === oit                                                               -- printer must change the datum 
+              ; all (==(True :: Bool)) [a,b,c]
               }
             _ -> False
         _ -> False
     (OfferInformation oit) ->
       case redeemer of
-        Accept -> 
-          case embeddedDatum continuingTxOutputs of
-            (PrintingInformation pit) -> do
-              {
-              ; let a = traceIfFalse "Incorrect Signer"     $ txSignedBy info (oiCustomerPKH oit)                        -- customer must sign it
-              ; let b = traceIfFalse "Incorrect Token Cont" $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
-              ; let c = traceIfFalse "Incorrect Printer"    $ oit === pit                                                -- Only the stage can change
-              ; let d = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (1 :: Integer)                 -- single script input
-              ; all (==(True :: Bool)) [a,b,c,d]
-              }
-            _ -> False
-        Deny ->
-          case embeddedDatum continuingTxOutputs of
-            (PrintingPool ppt) -> do
-              { let a = traceIfFalse "Incorrect State"      $ ppt === oit                                              -- the token is getting an offer
-              ; let b = traceIfFalse "Incorrect Signer"     $ txSignedBy info (oiPrinterPKH oit) || txSignedBy info (oiCustomerPKH oit)
-              ; let c = traceIfFalse "Incorrect Token Cont" $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
-              ; let d = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-              ; all (==(True :: Bool)) [a,b,c,d]
-              }
-            _ -> False
-        Update ->
-          case embeddedDatum continuingTxOutputs of
-            (OfferInformation oit') -> do
-              { let a = traceIfFalse "Incorrect State"      $ oit == oit'                                                -- change the print time
-              ; let b = traceIfFalse "Incorrect Signer"     $ txSignedBy info (oiPrinterPKH oit)
-              ; let c = traceIfFalse "Incorrect Token Cont" $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
-              ; let d = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-              ; all (==(True :: Bool)) [a,b,c,d]
-              }
-            _ -> False
-        _ -> False
-    (PrintingInformation pit) ->
-      case redeemer of
         Cancel ->
           case embeddedDatum continuingTxOutputs of
             (PrintingPool ppt) -> do
-              { let a = traceIfFalse "Incorrect State"      $ pit === ppt                                                -- the token is getting an offer
-              ; let b = traceIfFalse "Incorrect Signer"     $ txSignedBy info (piPrinterPKH pit)                         -- customer must sign it
-              ; let c = traceIfFalse "Incorrect Token Cont" $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
-              ; let d = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-              ; all (==(True :: Bool)) [a,b,c,d]
+              { let customerPkh  = ppCustomerPKH ppt
+              ; let customerSc   = ppCustomerSC  ppt
+              ; let customerAddr = createAddress customerPkh customerSc
+              ; let offerValue = Ada.lovelaceValueOf (oiOfferPrice oit)
+              ; let newValue = validatingValue - offerValue
+              ; let a = traceIfFalse "Incorrect State"      $ ppt === oit                                                -- the token is getting an offer
+              ; let b = traceIfFalse "Incorrect Signer"     $ txSignedBy info (oiPrinterPKH oit)                         -- customer must sign it
+              ; let c = traceIfFalse "Incorrect Token Cont" $ checkContTxOutForValue continuingTxOutputs newValue        -- token must go back to script
+              ; let d = traceIfFalse "Incorrect Token Chan" $ checkTxOutForValueAtAddr txOutputs customerAddr offerValue -- token must go back to customer
+              ; let e = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
+              ; all (==(True :: Bool)) [a,b,c,d,e]
               }
             _ -> False
-        Remove -> 
+        Remove ->
           case embeddedDatum continuingTxOutputs of
             (PrintingPool ppt) -> do
-              { let a = traceIfFalse "Incorrect State"       $ pit === ppt                                                -- the token is getting an offer
-              ; let b = traceIfFalse "Incorrect Signer"      $ txSignedBy info (piCustomerPKH pit)                        -- customer must sign it
-              ; let c = traceIfFalse "Incorrect Token Cont"  $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
-              ; let d = traceIfFalse "SingleScript Inputs"   $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-              ; let e = traceIfFalse "Job Is Still Printing" $ not $ overlaps (lockInterval (piPrintTime pit)) validityRange
-              ; all (==(True :: Bool)) [a,b,c,d,e]
+              { let customerPkh  = ppCustomerPKH ppt
+              ; let customerSc   = ppCustomerSC  ppt
+              ; let customerAddr = createAddress customerPkh customerSc
+              ; let offerValue = Ada.lovelaceValueOf (oiOfferPrice oit)
+              ; let newValue = validatingValue - offerValue 
+              ; let a = traceIfFalse "Incorrect State"       $ ppt === oit                                                -- the token is getting an offer
+              ; let b = traceIfFalse "Incorrect Signer"      $ txSignedBy info (oiCustomerPKH oit)                        -- customer must sign it
+              ; let c = traceIfFalse "Incorrect Token Cont"  $ checkContTxOutForValue continuingTxOutputs newValue        -- token must go back to script
+              ; let d = traceIfFalse "Incorrect Token Chan"  $ checkTxOutForValueAtAddr txOutputs customerAddr offerValue -- token must go back to customer
+              ; let e = traceIfFalse "SingleScript Inputs"   $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
+              ; let f = traceIfFalse "Job Is Still Printing" $ not $ overlaps (lockInterval (oiPrintTime oit)) validityRange
+              ; all (==(True :: Bool)) [a,b,c,d,e,f]
               }
             _ -> False
         Ship ->
           case embeddedDatum continuingTxOutputs of
             (CurrentlyShipping sit) -> do
-              { let a = traceIfFalse "Incorrect Signer"     $ txSignedBy info (siPrinterPKH sit)                         -- printer must sign
+              { let a = traceIfFalse "Incorrect Signer"     $ txSignedBy info (oiPrinterPKH oit)                         -- printer must sign
               ; let b = traceIfFalse "Incorrect Token Cont" $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
-              ; let c = traceIfFalse "Incorrect New State"  $ pit === sit                                                -- job is done printing and is now shipping
+              ; let c = traceIfFalse "Incorrect New State"  $ oit === sit                                                -- job is done printing and is now shipping
               ; let d = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
               ; all (==(True :: Bool)) [a,b,c,d]
               }
@@ -205,10 +180,18 @@ mkValidator _ datum redeemer context =
     (CurrentlyShipping sit) ->
       case redeemer of
         Accept -> do
-          { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (siCustomerPKH sit)                                                                     -- customer must sign it
-          ; let b = traceIfFalse "Incorrect Token payout" $ checkTxOutForValueAtPKH txOutputs (siCustomerPKH sit) (validatingValue - priceValue (siOfferPrice sit)) -- customer gets token back
-          ; let c = traceIfFalse "Incorrect Price payout" $ checkTxOutForValueAtPKH txOutputs (siPrinterPKH sit) (priceValue $ siOfferPrice sit)                    -- printer gets paid
-          ; let d = traceIfFalse "SingleScript Inputs"    $ checkForNScriptInputs txInputs (1 :: Integer)                                                           -- single script input
+          { let customerPkh  = siCustomerPKH sit
+          ; let customerSc   = siCustomerSC  sit
+          ; let customerAddr = createAddress customerPkh customerSc
+          ; let printerPkh   = siPrinterPKH sit
+          ; let printerSc    = siPrinterSC  sit
+          ; let printerAddr  = createAddress printerPkh printerSc
+          ; let offerValue   = Ada.lovelaceValueOf (siOfferPrice sit)
+          ; let newValue     = validatingValue - offerValue 
+          ; let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info customerPkh                               -- customer must sign it
+          ; let b = traceIfFalse "Incorrect Token payout" $ checkTxOutForValueAtAddr txOutputs customerAddr newValue  -- customer gets token back
+          ; let c = traceIfFalse "Incorrect Price payout" $ checkTxOutForValueAtAddr txOutputs printerAddr offerValue -- printer gets paid
+          ; let d = traceIfFalse "Single Script Inputs"   $ checkForNScriptInputs txInputs (1 :: Integer)             -- single script input
           ; all (==(True :: Bool)) [a,b,c,d]
           }
         _ -> False
@@ -226,13 +209,10 @@ mkValidator _ datum redeemer context =
     txOutputs = txInfoOutputs info
 
     validatingValue :: Value
-    validatingValue = 
+    validatingValue =
       case findOwnInput context of
         Nothing     -> traceError "No Input to Validate."  -- This should never be hit.
         Just input  -> txOutValue $ txInInfoResolved input
-
-    priceValue :: Integer -> Value
-    priceValue price = Ada.lovelaceValueOf price
 
     embeddedDatum :: [TxOut] -> CustomDatumType
     embeddedDatum [] = datum

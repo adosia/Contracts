@@ -28,12 +28,8 @@
 module DataTypes
   ( PrintingPoolType
   , ppCustomerPKH
-  , ppOfferPrice
-  , PrintingInfoType
-  , piCustomerPKH
-  , piOfferPrice
-  , piPrinterPKH
-  , piPrintTime
+  , ppCustomerSC
+  , ppRegionCode
   , OfferInformationType
   , oiCustomerPKH
   , oiOfferPrice
@@ -41,9 +37,10 @@ module DataTypes
   , oiPrintTime
   , ShippingInfoType
   , siCustomerPKH
-  , siOfferPrice
+  , siCustomerSC
   , siPrinterPKH
-  , siShipTime
+  , siPrinterSC
+  , siOfferPrice
   , (===)
   ) where
 import           Ledger                    hiding ( singleton )
@@ -69,7 +66,9 @@ class Equiv a b where
 data PrintingPoolType = PrintingPoolType
   { ppCustomerPKH :: !PubKeyHash
   -- ^ The customer's payment public key hash.
-  , ppOfferPrice  :: !Integer
+  , ppCustomerSC  :: !PubKeyHash
+  -- ^ The Customer's staking credential.
+  , ppRegionCode  :: ![Integer]
   -- ^ The lovelace amount for the printer.
   }
     deriving stock (Show, Generic)
@@ -77,20 +76,29 @@ data PrintingPoolType = PrintingPoolType
 PlutusTx.unstableMakeIsData ''PrintingPoolType
 PlutusTx.makeLift ''PrintingPoolType
 
+-- old == new
 instance Eq PrintingPoolType where
   {-# INLINABLE (==) #-}
   a == b = ( ppCustomerPKH a == ppCustomerPKH b) &&
-           ( ppOfferPrice  a /= ppOfferPrice  b)
+           ( ppCustomerSC  a == ppCustomerSC  b) &&
+           ( ppRegionCode  a /= ppRegionCode  b)
+
 -------------------------------------------------------------------------------
 -- | Make Offer Data Object
 -------------------------------------------------------------------------------
 data OfferInformationType = OfferInformationType
   { oiCustomerPKH :: !PubKeyHash
   -- ^ The customer's payment public key hash.
-  , oiOfferPrice  :: !Integer
+  , oiCustomerSC  :: !PubKeyHash
+  -- ^ The Customer's staking credential.
+  , oiRegionCode  :: ![Integer]
   -- ^ The lovelace amount for the printer.
   , oiPrinterPKH  :: !PubKeyHash
   -- ^ The printer's payment public key hash.
+  , oiPrinterSC   :: !PubKeyHash
+  -- ^ The printer's payment public key hash.
+  , oiOfferPrice  :: !Integer
+  -- ^ The lovelace amount for the printer.
   , oiPrintTime   :: !Integer
   -- ^ The estimated printing time in nanoseconds.
   }
@@ -99,81 +107,38 @@ data OfferInformationType = OfferInformationType
 PlutusTx.unstableMakeIsData ''OfferInformationType
 PlutusTx.makeLift ''OfferInformationType
 
-instance Eq OfferInformationType where
-  {-# INLINABLE (==) #-}
-  a == b = ( oiCustomerPKH a == oiCustomerPKH b) &&
-           ( oiOfferPrice  a == oiOfferPrice  b) &&
-           ( oiPrinterPKH  a == oiPrinterPKH  b) &&
-           ( oiPrintTime   a /= oiPrintTime   b)
-
+-- multi sig offer equiv instance
 instance Equiv PrintingPoolType OfferInformationType where
   {-# INLINABLE (===) #-}
   a === b = ( ppCustomerPKH a == oiCustomerPKH b) &&
-            ( ppOfferPrice  a == oiOfferPrice  b)
--------------------------------------------------------------------------------
--- | Printing Info Data Object
--------------------------------------------------------------------------------
-data PrintingInfoType = PrintingInfoType
-  { piCustomerPKH :: !PubKeyHash
-  -- ^ The customer's payment public key hash.
-  , piOfferPrice  :: !Integer
-  -- ^ The lovelace amount for the printer.
-  , piPrinterPKH  :: !PubKeyHash
-  -- ^ The printer's payment public key hash.
-  , piPrintTime   :: !Integer
-  -- ^ The estimated printing time in nanoseconds.
-  }
-    deriving stock (Show, Generic)
-    deriving anyclass (FromJSON, ToJSON, ToSchema)
-PlutusTx.unstableMakeIsData ''PrintingInfoType
-PlutusTx.makeLift ''PrintingInfoType
+            ( ppCustomerSC  a == oiCustomerSC  b) &&
+            ( ppRegionCode  a == oiRegionCode  b)
 
-instance Eq PrintingInfoType where
-  {-# INLINABLE (==) #-}
-  a == b = ( piCustomerPKH a == piCustomerPKH b) &&
-           ( piOfferPrice  a == piOfferPrice  b) &&
-           ( piPrinterPKH  a == piPrinterPKH  b) &&
-           ( piPrintTime   a == piPrintTime   b)
-
-instance Equiv PrintingInfoType PrintingPoolType where
-  {-# INLINABLE (===) #-}
-  a === b = ( piCustomerPKH a == ppCustomerPKH b) &&
-            ( piOfferPrice  a == ppOfferPrice  b)
-
-instance Equiv OfferInformationType PrintingInfoType where
-  {-# INLINABLE (===) #-}
-  a === b = ( oiCustomerPKH a == piCustomerPKH b) &&
-            ( oiOfferPrice  a == piOfferPrice  b) &&
-            ( oiPrinterPKH  a == piPrinterPKH  b) &&
-            ( oiPrintTime   a == piPrintTime   b)
 -------------------------------------------------------------------------------
 -- | Shipping Data Object
 -------------------------------------------------------------------------------
 data ShippingInfoType = ShippingInfoType
   { siCustomerPKH :: !PubKeyHash
   -- ^ The customer's payment public key hash.
-  , siOfferPrice  :: !Integer
-  -- ^ The lovelace amount for the printer.
+  , siCustomerSC  :: !PubKeyHash
+  -- ^ The Customer's staking credential.
   , siPrinterPKH  :: !PubKeyHash
   -- ^ The printer's payment public key hash.
-  , siShipTime    :: !Integer
-  -- ^ The estimated printing time in nanoseconds.
+  , siPrinterSC   :: !PubKeyHash
+  -- ^ The Customer's staking credential.
+  , siOfferPrice  :: !Integer
+  -- ^ The lovelace amount for the printer.
   }
     deriving stock (Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''ShippingInfoType
 PlutusTx.makeLift ''ShippingInfoType
 
-instance Eq ShippingInfoType where
-  {-# INLINABLE (==) #-}
-  a == b = ( siCustomerPKH a == siCustomerPKH b) &&
-           ( siOfferPrice  a == siOfferPrice  b) &&
-           ( siPrinterPKH  a == siPrinterPKH  b) &&
-           ( siShipTime    a == siShipTime    b)
-
-instance Equiv PrintingInfoType ShippingInfoType where
+-- print to ship equiv
+instance Equiv OfferInformationType ShippingInfoType where
   {-# INLINABLE (===) #-}
-  a === b = ( piCustomerPKH a == siCustomerPKH b) &&
-            ( piOfferPrice  a == siOfferPrice  b) &&
-            ( piPrinterPKH  a == siPrinterPKH  b) &&
-            ( siShipTime    b  > (0 :: Integer) )
+  a === b = ( oiCustomerPKH a == siCustomerPKH b) &&
+            ( oiCustomerSC  a == siCustomerSC  b) &&
+            ( oiPrinterPKH  a == siPrinterPKH  b) &&
+            ( oiPrinterSC   a == siPrinterSC   b) &&
+            ( oiOfferPrice  a == siOfferPrice  b)
