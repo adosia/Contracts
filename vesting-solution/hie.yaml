@@ -1,6 +1,0 @@
-cradle:
-  cabal:
-    - path: "./vesting-contract/src"
-      component: "vesting-contract:lib:vesting-contract"
-    - path: "./vesting-contract/pab"
-      component: "vesting-contract:exe:plutus-starter-pab"
