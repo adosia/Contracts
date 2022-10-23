@@ -26,61 +26,45 @@
 {-# OPTIONS_GHC -fno-specialise               #-}
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
 module DataTypes
-  ( MarketDataType
-  , mDesignerPKH
-  , mDesignerSC
-  , mStartPolicy
-  , mStartName
-  , mNumber
-  , mPoPolicy
-  , mPrefixName
-  , mPoPrice
+  ( MarketDataType (..)
+  , checkDatumIncrease
   ) where
-import           PlutusTx.Prelude
 import qualified PlutusTx
-import           Ledger                   hiding ( singleton )
-import           Data.Aeson               ( FromJSON, ToJSON )
-import           Data.OpenApi.Schema      ( ToSchema )
-import           GHC.Generics             ( Generic )
-import           Prelude                  ( Show )
+import           PlutusTx.Prelude
+import qualified Plutus.V2.Ledger.Api   as PlutusV2
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
-  Version  : Rev 0
+  Version  : Rev 1
 -}
 -------------------------------------------------------------------------------
 -- | Custom Data Object
 -------------------------------------------------------------------------------
 data MarketDataType = MarketDataType
-  { mDesignerPKH :: !PubKeyHash
+  { mDesignerPKH :: PlutusV2.PubKeyHash
   -- ^ The Designer's payment public key hash.
-  , mDesignerSC  :: !PubKeyHash
+  , mDesignerSC  :: PlutusV2.PubKeyHash
   -- ^ The Designer's staking credential.
-  , mStartPolicy :: !CurrencySymbol
+  , mStartPolicy :: PlutusV2.CurrencySymbol
   -- ^ Starting Policy ID for the designer.
-  , mStartName   :: !TokenName
+  , mStartName   :: PlutusV2.TokenName
   -- ^ Starting Token Name for the designer.
-  , mNumber      :: !Integer
+  , mNumber      :: Integer
   -- ^ The current design increment number.
-  , mPoPolicy    :: !CurrencySymbol
+  , mPoPolicy    :: PlutusV2.CurrencySymbol
   -- ^ The purchase order Policy ID.
-  , mPrefixName  :: !BuiltinByteString
+  , mPrefixName  :: PlutusV2.BuiltinByteString
   -- ^ The purchase order Token Name Prefix.
-  , mPoPrice     :: !Integer
+  , mPoPrice     :: Integer
   -- ^ The purchase order price in lovelace.
   }
-    deriving stock    ( Show, Generic )
-    deriving anyclass ( FromJSON, ToJSON, ToSchema )
 PlutusTx.unstableMakeIsData ''MarketDataType
-PlutusTx.makeLift ''MarketDataType
 
--- old == new
-instance Eq MarketDataType where
-  {-# INLINABLE (==) #-}
-  a == b = ( mDesignerPKH a == mDesignerPKH b ) &&
-           ( mDesignerSC  a == mDesignerSC  b ) &&
-           ( mStartPolicy a == mStartPolicy b ) &&
-           ( mStartName   a == mStartName   b ) &&
-           ( mNumber  a + 1 == mNumber      b ) &&
-           ( mPoPolicy    a == mPoPolicy    b ) &&
-           ( mPoPrice     a == mPoPrice     b )
+checkDatumIncrease :: MarketDataType -> MarketDataType -> Bool
+checkDatumIncrease a b =  ( mDesignerPKH a == mDesignerPKH b ) &&
+                          ( mDesignerSC  a == mDesignerSC  b ) &&
+                          ( mStartPolicy a == mStartPolicy b ) &&
+                          ( mStartName   a == mStartName   b ) &&
+                          ( mNumber  a + 1 == mNumber      b ) &&
+                          ( mPoPolicy    a == mPoPolicy    b ) &&
+                          ( mPoPrice     a == mPoPrice     b )

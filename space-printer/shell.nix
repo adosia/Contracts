@@ -1,6 +1,6 @@
 { pure ? false }:
 let
-  packages = import ./printing-pool;
+  packages = import *;
   inherit (packages) pkgs plutus-starter;
   inherit (plutus-starter) haskell;
 

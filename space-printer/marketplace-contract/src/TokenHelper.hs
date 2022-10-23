@@ -32,6 +32,8 @@ module TokenHelper
   ) where
 import           PlutusTx.Prelude
 import qualified PlutusTx.Builtins.Internal as Internal
+import qualified Plutus.V2.Ledger.Api       as PlutusV2
+
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
@@ -40,39 +42,39 @@ import qualified PlutusTx.Builtins.Internal as Internal
 -------------------------------------------------------------------------------
 -- Creates an NFT Name
 -------------------------------------------------------------------------------
-nftName :: BuiltinByteString -> Integer -> BuiltinByteString
+nftName :: PlutusV2.BuiltinByteString -> Integer -> PlutusV2.BuiltinByteString
 nftName prefix num = prefix <> integerToInteger num
 
 -------------------------------------------------------------------------------
 -- Converts any Integer into base 16 (hex) String. 101 -> "65"
 -------------------------------------------------------------------------------
-integerToHex :: Integer -> BuiltinByteString
+integerToHex :: Integer -> PlutusV2.BuiltinByteString
 integerToHex num =  convertToHex base16 ""
   where
     base16 :: [Integer]
     base16 = baseQ num 16 []
 
-    convertToHex :: [Integer] -> BuiltinByteString -> BuiltinByteString
+    convertToHex :: [Integer] -> PlutusV2.BuiltinByteString -> PlutusV2.BuiltinByteString
     convertToHex [] str = str
     convertToHex (x:xs) str = convertToHex xs (str <> intChars x)
 
 -------------------------------------------------------------------------------
 -- Converts any Integer into base 10 (Integer) String. 101 -> "101"
 -------------------------------------------------------------------------------
-integerToInteger :: Integer -> BuiltinByteString
+integerToInteger :: Integer -> PlutusV2.BuiltinByteString
 integerToInteger num = if num == 0 then "0" else convertToHex base16 ""
   where
     base16 :: [Integer]
     base16 = baseQ num 10 []
 
-    convertToHex :: [Integer] -> BuiltinByteString -> BuiltinByteString
+    convertToHex :: [Integer] -> PlutusV2.BuiltinByteString -> PlutusV2.BuiltinByteString
     convertToHex [] str = str
     convertToHex (x:xs) str = convertToHex xs (str <> intChars x)
 
 -------------------------------------------------------------------------------
 -- Converts a single Integer into base 16 (hex) Character.
 -------------------------------------------------------------------------------
-intChars :: Integer -> BuiltinByteString
+intChars :: Integer -> PlutusV2.BuiltinByteString
 intChars ch
   | ch == 0   = "0"
   | ch == 1   = "1"
