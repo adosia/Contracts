@@ -27,11 +27,12 @@
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
 module DataTypes
   ( PrintingPoolType (..)
-  , changeRegionCodes
+  , checkPrintingPoolUpdate
   , OfferInformationType (..)
   , checkPrintingOffer
   , ShippingInfoType (..)
   , checkShippingStatus
+  , MakeOfferType (..)
   ) where
 import qualified PlutusTx
 import           PlutusTx.Prelude
@@ -56,11 +57,11 @@ data PrintingPoolType = PrintingPoolType
   }
 PlutusTx.unstableMakeIsData ''PrintingPoolType
 
-changeRegionCodes :: PrintingPoolType -> PrintingPoolType -> Bool
-changeRegionCodes a b = ( ppCustomerPKH a == ppCustomerPKH b ) &&
-                        ( ppCustomerSC  a == ppCustomerSC  b ) &&
-                        ( ppRegionCode  a /= ppRegionCode  b ) &&
-                        ( ppPOName      a == ppPOName      b )
+checkPrintingPoolUpdate :: PrintingPoolType -> PrintingPoolType -> Bool
+checkPrintingPoolUpdate a b = ( ppCustomerPKH a == ppCustomerPKH b ) &&
+                              ( ppCustomerSC  a == ppCustomerSC  b ) &&
+                              ( ppRegionCode  a /= ppRegionCode  b ) &&
+                              ( ppPOName      a == ppPOName      b )
 
 -------------------------------------------------------------------------------
 -- | Make Offer Data Object
@@ -118,3 +119,8 @@ checkShippingStatus a b = ( oiCustomerPKH a == siCustomerPKH b ) &&
                           ( oiOfferPrice  a == siOfferPrice  b ) &&
                           ( oiPOName      a == siPOName      b )
 
+data MakeOfferType = MakeOfferType
+  { makeOfferPrice :: Integer
+  -- ^ The lovelace amount for the printer payout.
+  }
+PlutusTx.unstableMakeIsData ''MakeOfferType

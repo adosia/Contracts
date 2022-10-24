@@ -85,7 +85,7 @@ mkValidator datum redeemer context =
       }
    where
     info :: PlutusV2.TxInfo
-    info = PlutusV2.scriptContextTxInfo  context
+    info = PlutusV2.scriptContextTxInfo context
 
     contTxOutputs :: [PlutusV2.TxOut]
     contTxOutputs = ContextsV2.getContinuingOutputs context

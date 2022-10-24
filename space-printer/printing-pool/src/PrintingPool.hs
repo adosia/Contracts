@@ -47,6 +47,10 @@ import           UsefulFuncs
   Copyright: 2022
   Version  : Rev 1
 -}
+-- minting policy id from the invoice minting contract.
+purchaseOrderPid :: PlutusV2.CurrencySymbol
+purchaseOrderPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [] }
+
 -------------------------------------------------------------------------------
 -- | Create the datum parameters data object.
 -------------------------------------------------------------------------------
@@ -60,11 +64,11 @@ PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ('PrintingPool,        0)
 -------------------------------------------------------------------------------
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
-data CustomRedeemerType = Remove |
-                          Update |
-                          Offer  |
-                          Accept |
-                          Cancel |
+data CustomRedeemerType = Remove               |
+                          Update               |
+                          Offer  MakeOfferType |
+                          Accept               |
+                          Cancel               |
                           Ship
 PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ('Remove,  0)
                                                 , ('Update,  1)
@@ -82,37 +86,36 @@ mkValidator datum redeemer context =
   case datum of
     (PrintingPool ppt) ->
       case redeemer of
-        Remove -> True -- do
-          -- { let customerPkh  = ppCustomerPKH ppt
-          -- ; let customerSc   = ppCustomerSC  ppt
-          -- ; let customerAddr = createAddress customerPkh customerSc
-          -- ; let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info customerPkh                                     -- customer must sign it
-          -- ; let b = traceIfFalse "Incorrect Token Return" $ checkTxOutForValueAtAddr txOutputs customerAddr validatingValue -- token must go back to customer
-          -- ; let c = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)                   -- single script input
-          -- ; all (==(True :: Bool)) [a,b,c]
-          -- }
-        Update -> True
-          -- case embeddedDatum continuingTxOutputs of
-          --   (PrintingPool ppt') -> do
-          --     { let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info (ppCustomerPKH ppt)                        -- customer must sign it
-          --     ; let b = traceIfFalse "Incorrect Token Return" $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
-          --     ; let c = traceIfFalse "Too Many Script Inputs" $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-          --     ; let d = traceIfFalse "Incorrect New State"    $ ppt == ppt'                                                -- change region codes only
-          --     ; let e = traceIfFalse "Wrong Purchase Order"   $ Value.valueOf validatingValue (poPolicyId ppp) (ppPOName ppt) == (1 :: Integer)
-          --     ; all (==(True :: Bool)) [a,b,c,d,e]
-          --     }
-          --   _ -> False
-        Offer -> True 
-          -- case embeddedDatum continuingTxOutputs of
-          --   (OfferInformation oit) -> do
-          --     { let newValue = validatingValue + Ada.lovelaceValueOf (oiOfferPrice oit)
-          --     ; let a = traceIfFalse "Incorrect Signer"      $ txSignedBy info (ppCustomerPKH ppt) && txSignedBy info (oiPrinterPKH oit) -- The printer must sign it
-          --     ; let b = traceIfFalse "Offer: Incrt Tkn Cont" $ checkContTxOutForValue continuingTxOutputs newValue                       -- token must go back to script
-          --     ; let c = traceIfFalse "Incorrect New State"   $ ppt === oit                                                               -- printer must change the datum 
-          --     ; let d = traceIfFalse "Wrong Purchase Order"  $ Value.valueOf validatingValue (poPolicyId ppp) (ppPOName ppt) == (1 :: Integer)
-          --     ; all (==(True :: Bool)) [a,b,c,d]
-          --     }
-          --   _ -> False
+        Remove -> do
+          { let customerPkh  = ppCustomerPKH ppt
+          ; let customerSc   = ppCustomerSC  ppt
+          ; let customerAddr = createAddress customerPkh customerSc
+          ; let a = traceIfFalse "Incorrect Signer"    $ ContextsV2.txSignedBy info customerPkh                          -- customer must sign it
+          ; let b = traceIfFalse "Value Not Returned"  $ isAddrGettingPaidExactly txOutputs customerAddr validatingValue -- token must go back to customer
+          ; let c = traceIfFalse "Single Script UTxO"  $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0              -- single script input
+          ;         traceIfFalse "PrintingPool:Remove" $ all (==(True :: Bool)) [a,b,c]
+          }
+        Update ->
+          case getContinuingDatum contTxOutputs validatingValue of
+            (PrintingPool ppt') -> do
+              { let a = traceIfFalse "Incorrect Signer"     $ ContextsV2.txSignedBy info (ppCustomerPKH ppt)                                  -- customer must sign it
+              ; let b = traceIfFalse "Single Script UTxO"   $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1                              -- single script input
+              ; let c = traceIfFalse "Wrong Purchase Order" $ Value.valueOf validatingValue purchaseOrderPid (ppPOName ppt) == (1 :: Integer) -- holding po nft
+              ; let d = traceIfFalse "Incorrect New State"  $ checkPrintingPoolUpdate ppt ppt'                                                -- change pp info
+              ;         traceIfFalse "PrintingPool:Update"  $ all (==(True :: Bool)) [a,b,c,d]
+              }
+            _ -> False
+        (Offer mot) ->
+          let additionalValue = validatingValue + (adaValue $ makeOfferPrice mot)
+          in case getContinuingDatum contTxOutputs additionalValue of
+            (OfferInformation oit) -> do
+              { let a = traceIfFalse "Bad Customer Signer"  $ ContextsV2.txSignedBy info (ppCustomerPKH ppt)                                  -- The customer must sign it
+              ; let b = traceIfFalse "Bad Printer Signer"   $ ContextsV2.txSignedBy info (oiPrinterPKH oit)                                   -- The printer must sign it
+              ; let c = traceIfFalse "Wrong Purchase Order" $ Value.valueOf validatingValue purchaseOrderPid (ppPOName ppt) == (1 :: Integer) -- must hold po
+              ; let d = traceIfFalse "Incorrect New State"  $ checkPrintingOffer ppt oit                                                      -- printer must change the datum 
+              ;         traceIfFalse "PrintingPool:Offer"   $ all (==(True :: Bool)) [a,b,c,d]
+              }
+            _ -> False
         _ -> False
     (OfferInformation oit) ->
       case redeemer of
@@ -182,34 +185,42 @@ mkValidator datum redeemer context =
         --   ; all (==(True :: Bool)) [a,b,c,d,e]
         --   }
         -- _ -> False
-  -- where
-  --   info :: TxInfo
-  --   info = scriptContextTxInfo context
+  where
+    info :: PlutusV2.TxInfo
+    info = PlutusV2.scriptContextTxInfo context
 
-  --   continuingTxOutputs  :: [TxOut]
-  --   continuingTxOutputs  = getContinuingOutputs context
+    contTxOutputs :: [PlutusV2.TxOut]
+    contTxOutputs = ContextsV2.getContinuingOutputs context
 
-  --   txInputs :: [TxInInfo]
-  --   txInputs = txInfoInputs info
+    txInputs :: [PlutusV2.TxInInfo]
+    txInputs = PlutusV2.txInfoInputs  info
 
-  --   txOutputs :: [TxOut]
-  --   txOutputs = txInfoOutputs info
+    txOutputs :: [PlutusV2.TxOut]
+    txOutputs = PlutusV2.txInfoOutputs info
 
-  --   validatingValue :: Value
-  --   validatingValue =
-  --     case findOwnInput context of
-  --       Nothing     -> traceError "No Input to Validate."  -- This should never be hit.
-  --       Just input  -> txOutValue $ txInInfoResolved input
+    -- token info
+    validatingValue :: PlutusV2.Value
+    validatingValue =
+      case ContextsV2.findOwnInput context of
+        Nothing    -> traceError "No Input to Validate." -- This error should never be hit.
+        Just input -> PlutusV2.txOutValue $ PlutusV2.txInInfoResolved input
     
-  --   embeddedDatum :: [TxOut] -> CustomDatumType
-  --   embeddedDatum [] = datum
-  --   embeddedDatum (txOut:txOuts) =
-  --     case txOutDatumHash txOut of
-  --       Nothing -> embeddedDatum txOuts
-  --       Just dh ->
-  --         case findDatum dh info of
-  --           Nothing        -> embeddedDatum txOuts
-  --           Just (Datum datum') -> Data.Maybe.fromMaybe datum (PlutusTx.fromBuiltinData datum')
+    -- datum stuff
+    getContinuingDatum :: [PlutusV2.TxOut] -> PlutusV2.Value -> CustomDatumType
+    getContinuingDatum []     _   = datum
+    getContinuingDatum (x:xs) val =
+      if PlutusV2.txOutValue x == val -- strict value continue
+        then
+          case PlutusV2.txOutDatum x of
+            PlutusV2.NoOutputDatum       -> getContinuingDatum xs val -- datumless
+            (PlutusV2.OutputDatumHash _) -> getContinuingDatum xs val -- embedded datum
+            -- inline datum only
+            (PlutusV2.OutputDatum (PlutusV2.Datum d)) -> 
+              case PlutusTx.fromBuiltinData d of
+                Nothing     -> getContinuingDatum xs val              -- bad data
+                Just inline -> inline
+        else getContinuingDatum xs val
+  
 
   --   validityRange :: POSIXTimeRange
   --   validityRange = txInfoValidRange info
