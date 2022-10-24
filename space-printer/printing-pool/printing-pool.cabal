@@ -47,19 +47,15 @@ library
 
   exposed-modules:      PrintingPool
                         DataTypes
-                        CheckFuncs
 
   build-depends:        bytestring
                       , cardano-api
-                      , plutus-ledger
                       , plutus-ledger-api
                       , plutus-tx
                       , plutus-tx-plugin
-                      , plutus-contract
-                      , playground-common
+                      , plutus-script-utils
                       , serialise
-                      , text
-                      , containers
+                      , useful-funcs
 
   ghc-options: -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
 
@@ -70,8 +66,5 @@ executable printing-pool
   ghc-options:          -threaded -rtsopts "-with-rtsopts=-T"
 
   build-depends:        cardano-api
-                      , cardano-ledger-alonzo
                       , printing-pool
-                      , plutus-ledger-api
-                      , bytestring
 

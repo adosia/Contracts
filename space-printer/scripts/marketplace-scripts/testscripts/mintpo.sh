@@ -1,0 +1,23 @@
+${cli} transaction build \
+    --babbage-era \
+    --protocol-params-file tmp/protocol.json \
+    --out-file tmp/tx.draft \
+    --change-address ${customer_address} \
+    --tx-in-collateral="${collat_utxo}" \
+    --tx-in ${customer_tx_in} \
+    --tx-in ${script_tx_in} \
+    --spending-tx-in-reference="${script_ref_utxo}#1" \
+    --spending-plutus-script-v2 \
+    --spending-reference-tx-in-inline-datum-present \
+    --spending-reference-tx-in-redeemer-file data/mint_redeemer.json \
+    --tx-out="${buyer_address_out}" \
+    --tx-out="${script_address_out}" \
+    --tx-out-inline-datum-file data/marketplace_datum.json \
+    --required-signer-hash ${customer_pkh} \
+    --mint="${mint_asset}" \
+    --mint-tx-in-reference="${script_ref_utxo}#2" \
+    --mint-plutus-script-v2 \
+    --policy-id="${policy_id}" \
+    --mint-reference-tx-in-redeemer-file data/marketplace_datum.json \
+    --metadata-json-file ${metadata_file} \
+    ${network}

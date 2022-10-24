@@ -26,134 +26,95 @@
 {-# OPTIONS_GHC -fno-specialise               #-}
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
 module DataTypes
-  ( PrintingPoolType
-  , ppCustomerPKH
-  , ppCustomerSC
-  , ppRegionCode
-  , ppPOName
-  , OfferInformationType
-  , oiCustomerPKH
-  , oiCustomerSC
-  , oiRegionCode
-  , oiPOName
-  , oiPrinterPKH
-  , oiPrinterSC
-  , oiOfferPrice
-  , oiPrintTime
-  , ShippingInfoType
-  , siCustomerPKH
-  , siCustomerSC
-  , siPrinterPKH
-  , siPrinterSC
-  , siOfferPrice
-  , siPOName
-  , (===)
+  ( PrintingPoolType (..)
+  , changeRegionCodes
+  , OfferInformationType (..)
+  , checkPrintingOffer
+  , ShippingInfoType (..)
+  , checkShippingStatus
   ) where
-import           Ledger                    hiding ( singleton )
-import           Playground.Contract
 import qualified PlutusTx
 import           PlutusTx.Prelude
+import qualified Plutus.V2.Ledger.Api   as PlutusV2
 {- |
   Author   : The Ancient Kraken
-  Copyright: 2021
-  Version  : Rev 0
-
-  cardano-cli 1.33.0 - linux-x86_64 - ghc-8.10
-  git rev 814df2c146f5d56f8c35a681fe75e85b905aed5d
-
-  The printing pool smart contract.
+  Copyright: 2022
+  Version  : Rev 1
 -}
-class Equiv a b where
-  (===) :: a -> b -> Bool
-
 -------------------------------------------------------------------------------
 -- | Printing Pool Data Object
 -------------------------------------------------------------------------------
 data PrintingPoolType = PrintingPoolType
-  { ppCustomerPKH :: !PubKeyHash
+  { ppCustomerPKH :: PlutusV2.PubKeyHash
   -- ^ The customer's payment public key hash.
-  , ppCustomerSC  :: !PubKeyHash
+  , ppCustomerSC  :: PlutusV2.PubKeyHash
   -- ^ The Customer's staking credential.
-  , ppRegionCode  :: ![Integer]
+  , ppRegionCode  :: [Integer]
   -- ^ The lovelace amount for the printer.
-  , ppPOName      :: !TokenName
+  , ppPOName      :: PlutusV2.TokenName
   -- ^ The Purchase Order Name.
   }
-    deriving stock (Show, Generic)
-    deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''PrintingPoolType
-PlutusTx.makeLift ''PrintingPoolType
 
--- old == new
-instance Eq PrintingPoolType where
-  {-# INLINABLE (==) #-}
-  a == b = ( ppCustomerPKH a == ppCustomerPKH b ) &&
-           ( ppCustomerSC  a == ppCustomerSC  b ) &&
-           ( ppRegionCode  a /= ppRegionCode  b ) &&
-           ( ppPOName      a == ppPOName      b )
+changeRegionCodes :: PrintingPoolType -> PrintingPoolType -> Bool
+changeRegionCodes a b = ( ppCustomerPKH a == ppCustomerPKH b ) &&
+                        ( ppCustomerSC  a == ppCustomerSC  b ) &&
+                        ( ppRegionCode  a /= ppRegionCode  b ) &&
+                        ( ppPOName      a == ppPOName      b )
 
 -------------------------------------------------------------------------------
 -- | Make Offer Data Object
 -------------------------------------------------------------------------------
 data OfferInformationType = OfferInformationType
-  { oiCustomerPKH :: !PubKeyHash
+  { oiCustomerPKH :: PlutusV2.PubKeyHash
   -- ^ The customer's payment public key hash.
-  , oiCustomerSC  :: !PubKeyHash
+  , oiCustomerSC  :: PlutusV2.PubKeyHash
   -- ^ The Customer's staking credential.
-  , oiRegionCode  :: ![Integer]
+  , oiRegionCode  :: [Integer]
   -- ^ The lovelace amount for the printer.
-  , oiPOName      :: !TokenName
+  , oiPOName      :: PlutusV2.TokenName
   -- ^ The Purchase Order Name.
-  , oiPrinterPKH  :: !PubKeyHash
+  , oiPrinterPKH  :: PlutusV2.PubKeyHash
   -- ^ The printer's payment public key hash.
-  , oiPrinterSC   :: !PubKeyHash
+  , oiPrinterSC   :: PlutusV2.PubKeyHash
   -- ^ The printer's payment public key hash.
-  , oiOfferPrice  :: !Integer
+  , oiOfferPrice  :: Integer
   -- ^ The lovelace amount for the printer.
-  , oiPrintTime   :: !Integer
+  , oiPrintTime   :: Integer
   -- ^ The estimated printing time in nanoseconds.
   }
-    deriving stock (Show, Generic)
-    deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''OfferInformationType
-PlutusTx.makeLift ''OfferInformationType
 
--- multi sig offer equiv instance
-instance Equiv PrintingPoolType OfferInformationType where
-  {-# INLINABLE (===) #-}
-  a === b = ( ppCustomerPKH a == oiCustomerPKH b ) &&
-            ( ppCustomerSC  a == oiCustomerSC  b ) &&
-            ( ppRegionCode  a == oiRegionCode  b ) &&
-            ( ppPOName      a == oiPOName      b )
+checkPrintingOffer :: PrintingPoolType -> OfferInformationType -> Bool
+checkPrintingOffer a b =  ( ppCustomerPKH a == oiCustomerPKH b ) &&
+                          ( ppCustomerSC  a == oiCustomerSC  b ) &&
+                          ( ppRegionCode  a == oiRegionCode  b ) &&
+                          ( ppPOName      a == oiPOName      b )
 
 -------------------------------------------------------------------------------
 -- | Shipping Data Object
 -------------------------------------------------------------------------------
 data ShippingInfoType = ShippingInfoType
-  { siCustomerPKH :: !PubKeyHash
+  { siCustomerPKH :: PlutusV2.PubKeyHash
   -- ^ The customer's payment public key hash.
-  , siCustomerSC  :: !PubKeyHash
+  , siCustomerSC  :: PlutusV2.PubKeyHash
   -- ^ The Customer's staking credential.
-  , siPrinterPKH  :: !PubKeyHash
+  , siPrinterPKH  :: PlutusV2.PubKeyHash
   -- ^ The printer's payment public key hash.
-  , siPrinterSC   :: !PubKeyHash
+  , siPrinterSC   :: PlutusV2.PubKeyHash
   -- ^ The Customer's staking credential.
-  , siOfferPrice  :: !Integer
+  , siOfferPrice  :: Integer
   -- ^ The lovelace amount for the printer.
-  , siPOName      :: !TokenName
+  , siPOName      :: PlutusV2.TokenName
   -- ^ The Purchase Order Name.
   }
-    deriving stock (Show, Generic)
-    deriving anyclass (FromJSON, ToJSON, ToSchema)
 PlutusTx.unstableMakeIsData ''ShippingInfoType
-PlutusTx.makeLift ''ShippingInfoType
 
--- print to ship equiv
-instance Equiv OfferInformationType ShippingInfoType where
-  {-# INLINABLE (===) #-}
-  a === b = ( oiCustomerPKH a == siCustomerPKH b ) &&
-            ( oiCustomerSC  a == siCustomerSC  b ) &&
-            ( oiPrinterPKH  a == siPrinterPKH  b ) &&
-            ( oiPrinterSC   a == siPrinterSC   b ) &&
-            ( oiOfferPrice  a == siOfferPrice  b ) &&
-            ( oiPOName      a == siPOName      b )
+checkShippingStatus :: OfferInformationType -> ShippingInfoType -> Bool
+checkShippingStatus a b = ( oiCustomerPKH a == siCustomerPKH b ) &&
+                          ( oiCustomerSC  a == siCustomerSC  b ) &&
+                          ( oiPrinterPKH  a == siPrinterPKH  b ) &&
+                          ( oiPrinterSC   a == siPrinterSC   b ) &&
+                          ( oiOfferPrice  a == siOfferPrice  b ) &&
+                          ( oiPOName      a == siPOName      b )
+

@@ -144,3 +144,4 @@ lockingContractScriptShortBs = SBS.toShort . LBS.toStrict $ serialise script
 
 lockingContractScript :: PlutusScript PlutusScriptV2
 lockingContractScript = PlutusScriptSerialised lockingContractScriptShortBs
+
