@@ -187,25 +187,27 @@ mkValidator datum redeemer context =
 
       Handles the shipping and payout of the final product.
     -}
-    (CurrentlyShipping sit) -> True
-      -- case redeemer of
-        -- Accept -> True -- do
-        --   { let customerPkh  = siCustomerPKH sit
-        --   ; let customerSc   = siCustomerSC  sit
-        --   ; let customerAddr = createAddress customerPkh customerSc
-        --   ; let printerPkh   = siPrinterPKH sit
-        --   ; let printerSc    = siPrinterSC  sit
-        --   ; let printerAddr  = createAddress printerPkh printerSc
-        --   ; let offerValue   = Ada.lovelaceValueOf (siOfferPrice sit)
-        --   ; let newValue     = validatingValue - offerValue 
-        --   ; let a = traceIfFalse "Incorrect Signer"       $ txSignedBy info customerPkh                               -- customer must sign it
-        --   ; let b = traceIfFalse "Incorrect Token payout" $ checkTxOutForValueAtAddr txOutputs customerAddr newValue  -- customer gets token back
-        --   ; let c = traceIfFalse "Incorrect Price payout" $ checkTxOutForValueAtAddr txOutputs printerAddr offerValue -- printer gets paid
-        --   ; let d = traceIfFalse "Single Script Inputs"   $ checkForNScriptInputs txInputs (1 :: Integer)             -- single script input
-        --   ; let e = traceIfFalse "Wrong Purchase Order"   $ Value.valueOf validatingValue (poPolicyId ppp) (siPOName sit) == (1 :: Integer)
-        --   ; all (==(True :: Bool)) [a,b,c,d,e]
-        --   }
-        -- _ -> False
+    (CurrentlyShipping sit) ->
+      case redeemer of
+        -- mvp allows just for accepting the payments.
+        Accept -> do
+          { let customerPkh  = siCustomerPKH sit
+          ; let customerSc   = siCustomerSC  sit
+          ; let customerAddr = createAddress customerPkh customerSc
+          ; let printerPkh   = siPrinterPKH sit
+          ; let printerSc    = siPrinterSC  sit
+          ; let printerAddr  = createAddress printerPkh printerSc
+          ; let offerValue   = adaValue $ siOfferPrice sit
+          ; let returnValue  = validatingValue - offerValue 
+          ; let a = traceIfFalse "Incorrect Signer"         $ ContextsV2.txSignedBy info customerPkh                       -- customer must sign it
+          ; let b = traceIfFalse "Incorrect Token payout"   $ isAddrGettingPaidExactly txOutputs customerAddr returnValue  -- customer gets token back
+          ; let c = traceIfFalse "Incorrect Price payout"   $ isAddrGettingPaidExactly txOutputs printerAddr offerValue    -- printer gets paid
+          ; let d = traceIfFalse "Single Script UTxO"       $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0           -- single script input
+          ; let e = traceIfFalse "Wrong Purchase Order"     $ Value.valueOf validatingValue purchaseOrderPid (siPOName sit) == (1 :: Integer)
+          ;         traceIfFalse "CurrentlyShipping:Accept" $ all (==(True :: Bool)) [a,b,c,d,e]
+          }
+        -- other endpints fail
+        _ -> False
   where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo context
