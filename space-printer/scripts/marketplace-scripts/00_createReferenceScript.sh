@@ -1,0 +1,109 @@
+#!/bin/bash
+set -e
+
+export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
+cli=$(cat path_to_cli.sh)
+network="--testnet-magic 2"
+
+marketplace_script_path="../../marketplace-contract/marketplace-contract.plutus"
+invoice_script_path="../../invoice-minting/minting-contract.plutus"
+
+# Addresses
+reference_address=$(cat wallets/reference/payment.addr)
+
+lock_min_utxo=$(${cli} transaction calculate-min-required-utxo \
+    --babbage-era \
+    --protocol-params-file tmp/protocol.json \
+    --tx-out-reference-script-file ${marketplace_script_path} \
+    --tx-out="${reference_address} 5000000" | tr -dc '0-9')
+echo "Marketplace Min Fee" ${lock_min_utxo}
+
+mint_min_utxo=$(${cli} transaction calculate-min-required-utxo \
+    --babbage-era \
+    --protocol-params-file tmp/protocol.json \
+    --tx-out-reference-script-file ${invoice_script_path} \
+    --tx-out="${reference_address} 5000000" | tr -dc '0-9')
+echo "Invoice Min Fee" ${mint_min_utxo}
+
+echo
+nft_mint_value=$mint_min_utxo
+nft_lock_value=$lock_min_utxo
+nft_lock_script_reference_utxo="${reference_address} + ${nft_lock_value}"
+nft_mint_script_reference_utxo="${reference_address} + ${nft_mint_value}"
+
+echo -e "\nCreating NFT Locking Reference:\n" ${nft_lock_script_reference_utxo}
+echo -e "\nCreating NFT Minting Reference:\n" ${nft_mint_script_reference_utxo}
+#
+# exit
+#
+echo -e "\033[0;36m Gathering UTxO Information  \033[0m"
+${cli} query utxo \
+    ${network} \
+    --address ${reference_address} \
+    --out-file tmp/reference_utxo.json
+
+TXNS=$(jq length tmp/reference_utxo.json)
+if [ "${TXNS}" -eq "0" ]; then
+   echo -e "\n \033[0;31m NO UTxOs Found At ${reference_address} \033[0m \n";
+   exit;
+fi
+alltxin=""
+TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/reference_utxo.json)
+HEXTXIN=${TXIN::-8}
+# echo $HEXTXIN
+# exit
+
+# chain second set of reference scripts to the first
+echo -e "\033[0;36m Building Tx \033[0m"
+
+starting_reference_lovelace=$(jq '[.. | objects | .lovelace] | add' tmp/reference_utxo.json)
+
+${cli} transaction build-raw \
+    --babbage-era \
+    --protocol-params-file tmp/protocol.json \
+    --out-file tmp/tx.draft \
+    --tx-in ${HEXTXIN} \
+    --tx-out="${reference_address} + ${starting_reference_lovelace}" \
+    --tx-out="${nft_lock_script_reference_utxo}" \
+    --tx-out-reference-script-file ${marketplace_script_path} \
+    --tx-out="${nft_mint_script_reference_utxo}" \
+    --tx-out-reference-script-file ${invoice_script_path} \
+    --fee 900000
+FEE=$(${cli} transaction calculate-min-fee --tx-body-file tmp/tx.draft ${network} --protocol-params-file tmp/protocol.json --tx-in-count 0 --tx-out-count 0 --witness-count 1)
+# echo $FEE
+fee=$(echo $FEE | rev | cut -c 9- | rev)
+# echo $fee
+# exit
+firstReturn=$((${starting_reference_lovelace} - ${nft_mint_value} - ${nft_lock_value} - ${fee}))
+# echo $firstReturn
+# exit
+${cli} transaction build-raw \
+    --babbage-era \
+    --protocol-params-file tmp/protocol.json \
+    --out-file tmp/tx.draft \
+    --tx-in ${HEXTXIN} \
+    --tx-out="${reference_address} + ${firstReturn}" \
+    --tx-out="${nft_lock_script_reference_utxo}" \
+    --tx-out-reference-script-file ${marketplace_script_path} \
+    --tx-out="${nft_mint_script_reference_utxo}" \
+    --tx-out-reference-script-file ${invoice_script_path} \
+    --fee ${fee}
+
+echo -e "\033[0;36m Signing \033[0m"
+${cli} transaction sign \
+    --signing-key-file wallets/reference/payment.skey \
+    --tx-body-file tmp/tx.draft \
+    --out-file tmp/tx-1.signed \
+    ${network}
+
+
+nextUTxO=$(${cli} transaction txid --tx-body-file tmp/tx.draft)
+echo "First in the tx chain" $nextUTxO
+
+echo -e "\033[0;36m Submitting \033[0m"
+${cli} transaction submit \
+    ${network} \
+    --tx-file tmp/tx-1.signed
+
+
+cp tmp/tx-1.signed tmp/tx-reference-utxo.signed

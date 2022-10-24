@@ -2,29 +2,28 @@
   "constructor": 0,
   "fields": [
     {
-      "bytes": "ad46f5c66acbe9eea3cd2567f42ab6036353b18d6041ca9f0587502a"
+      "bytes": "f81595a5e215c4cc63ec82a0790e66c6b109033bc34e23c03cd756eb"
     },
     {
-      "bytes": ""
+      "bytes": "57e3e14dcee6ba8f48b97044ca868b4ee017d04ecc792de386beab74"
     },
     {
-      "bytes": "16af70780a170994e8e5e575f4401b1d89bddf7d1a11d6264e0b0c85"
+      "bytes": "4e57975183ebb751878fae25c1c9973d06be0d99b8a970224fa7fa36"
     },
     {
-      "bytes": "74426967546f6b656e4e616d653132"
+      "bytes": "5370616365526f636b6574"
     },
     {
-      "int": 1
+      "int": 0
     },
     {
-      "bytes": "088e1964087c9a0415439fa641184f882f422b74c0ea77995dd765bf"
+      "bytes": "82a9a5268727e17cb5cb2e7e1778ad62bc8140deb71e914aa43ab68c"
     },
     {
-      "bytes": "50757263686173654f726465725f"
+      "bytes": "5370616365526f636b6574"
     },
     {
       "int": 10000000
     }
   ]
 }
-  

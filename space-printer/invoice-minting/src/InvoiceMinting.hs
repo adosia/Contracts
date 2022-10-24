@@ -52,7 +52,7 @@ import           UsefulFuncs
 -- | Marketplace Validator Hash
 -------------------------------------------------------------------------------
 marketValidatorHash :: PlutusV2.ValidatorHash
-marketValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString []
+marketValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString [151, 161, 215, 105, 57, 80, 155, 87, 96, 25, 192, 16, 224, 145, 111, 155, 226, 145, 26, 25, 215, 146, 147, 13, 7, 171, 138, 147]
 -------------------------------------------------------------------------------
 data MarketDataType = MarketDataType
   { mDesignerPKH :: PlutusV2.PubKeyHash

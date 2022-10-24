@@ -4,10 +4,10 @@ set -e
 # SET UP VARS HERE
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
-script_path="../../marketplace-contract/marketplace_contract.plutus"
+script_path="../../marketplace-contract/marketplace-contract.plutus"
 
 # Addresses
-script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 1097911063)
+script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 2)
 echo -e "Script: " $script_address
 
 designer_address=$(cat wallets/designer/payment.addr)
@@ -20,19 +20,19 @@ token_hex=$(echo -n ${token_name} | xxd -ps)
 asset="1 ${policy_id}.${token_hex}"
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
-    --alonzo-era \
+    --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --tx-out-datum-embed-file data/datum/token_sale_datum.json \
     --tx-out="${script_address} ${asset}" | tr -dc '0-9')
 token_to_be_sold="${script_address} + ${min_utxo} + ${asset}"
 echo -e "\nCreating A New Token Sale In The Marketplace:\n" ${token_to_be_sold}
 #
-# exit
+exit
 #
 echo
 echo -e "\033[0;36m Getting Customer UTxO Information  \033[0m"
 ${cli} query utxo \
-    --testnet-magic 1097911063 \
+    --testnet-magic 2 \
     --address ${designer_address} \
     --out-file tmp/designer_utxo.json
 
@@ -54,7 +54,7 @@ FEE=$(${cli} transaction build \
     --tx-in ${HEXTXIN} \
     --tx-out="${token_to_be_sold}" \
     --tx-out-datum-embed-file data/datum/token_sale_datum.json \
-    --testnet-magic 1097911063)
+    --testnet-magic 2)
 
 IFS=':' read -ra VALUE <<< "$FEE"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
@@ -68,11 +68,11 @@ ${cli} transaction sign \
     --signing-key-file wallets/designer/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
-    --testnet-magic 1097911063
+    --testnet-magic 2
 #
 # exit
 #
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
-    --testnet-magic 1097911063 \
+    --testnet-magic 2 \
     --tx-file tmp/tx.signed
