@@ -40,6 +40,7 @@ import qualified Plutus.V1.Ledger.Value         as Value
 import qualified Plutus.V2.Ledger.Contexts      as ContextsV2
 import qualified Plutus.V2.Ledger.Api           as PlutusV2
 import           Plutus.Script.Utils.V2.Scripts as Utils
+import qualified Plutus.V1.Ledger.Interval      as Interval
 import           DataTypes
 import           UsefulFuncs
 {- |
@@ -84,8 +85,15 @@ PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ('Remove,  0)
 mkValidator :: CustomDatumType -> CustomRedeemerType -> PlutusV2.ScriptContext -> Bool
 mkValidator datum redeemer context =
   case datum of
+    {- | PrintingPool PrintingPoolType
+
+      Handles holding purchase orders in a pool so printers can make offers.
+
+      An offer is a multisig agreement between the printer and customer.
+    -}
     (PrintingPool ppt) ->
       case redeemer of
+        -- | customer removes their PO
         Remove -> do
           { let customerPkh  = ppCustomerPKH ppt
           ; let customerSc   = ppCustomerSC  ppt
@@ -95,6 +103,7 @@ mkValidator datum redeemer context =
           ; let c = traceIfFalse "Single Script UTxO"  $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0              -- single script input
           ;         traceIfFalse "PrintingPool:Remove" $ all (==(True :: Bool)) [a,b,c]
           }
+        -- | customer updates their po
         Update ->
           case getContinuingDatum contTxOutputs validatingValue of
             (PrintingPool ppt') -> do
@@ -105,6 +114,7 @@ mkValidator datum redeemer context =
               ;         traceIfFalse "PrintingPool:Update"  $ all (==(True :: Bool)) [a,b,c,d]
               }
             _ -> False
+        -- | multisig agreement between customer and printer
         (Offer mot) ->
           let additionalValue = validatingValue + (adaValue $ makeOfferPrice mot)
           in case getContinuingDatum contTxOutputs additionalValue of
@@ -113,62 +123,73 @@ mkValidator datum redeemer context =
               ; let b = traceIfFalse "Bad Printer Signer"   $ ContextsV2.txSignedBy info (oiPrinterPKH oit)                                   -- The printer must sign it
               ; let c = traceIfFalse "Wrong Purchase Order" $ Value.valueOf validatingValue purchaseOrderPid (ppPOName ppt) == (1 :: Integer) -- must hold po
               ; let d = traceIfFalse "Incorrect New State"  $ checkPrintingOffer ppt oit                                                      -- printer must change the datum 
-              ;         traceIfFalse "PrintingPool:Offer"   $ all (==(True :: Bool)) [a,b,c,d]
+              ; let e = traceIfFalse "Single Script UTxO"   $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1                              -- single script input
+              ;         traceIfFalse "PrintingPool:Offer"   $ all (==(True :: Bool)) [a,b,c,d,e]
               }
             _ -> False
+        -- | other endpoints should fail
         _ -> False
+    {- | OfferInformation OfferInformationType
+
+      Handles post printing pool logic. The offer has been made and agreed too.
+      In this state, the printer is currently printing the design.
+    -}
     (OfferInformation oit) ->
       case redeemer of
-        Cancel -> True
-          -- case embeddedDatum continuingTxOutputs of
-          --   (PrintingPool ppt) -> do
-          --     { let customerPkh  = ppCustomerPKH ppt
-          --     ; let customerSc   = ppCustomerSC  ppt
-          --     ; let customerAddr = createAddress customerPkh customerSc
-          --     ; let offerValue = Ada.lovelaceValueOf (oiOfferPrice oit)
-          --     ; let newValue = validatingValue - offerValue
-          --     ; let a = traceIfFalse "Incorrect State"      $ ppt === oit                                                -- the token is getting an offer
-          --     ; let b = traceIfFalse "Incorrect Signer"     $ txSignedBy info (oiPrinterPKH oit)                         -- customer must sign it
-          --     ; let c = traceIfFalse "Incorrect Token Cont" $ checkContTxOutForValue continuingTxOutputs newValue        -- token must go back to script
-          --     ; let d = traceIfFalse "Incorrect Token Chan" $ checkTxOutForValueAtAddr txOutputs customerAddr offerValue -- token must go back to customer
-          --     ; let e = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-          --     ; let f = traceIfFalse "Wrong Purchase Order" $ Value.valueOf validatingValue (poPolicyId ppp) (oiPOName oit) == (1 :: Integer)
-          --     ; all (==(True :: Bool)) [a,b,c,d,e,f]
-          --     }
-          --   _ -> False
-        Remove -> True
-          -- case embeddedDatum continuingTxOutputs of
-          --   (PrintingPool ppt) -> do
-          --     { let customerPkh  = ppCustomerPKH ppt
-          --     ; let customerSc   = ppCustomerSC  ppt
-          --     ; let customerAddr = createAddress customerPkh customerSc
-          --     ; let offerValue = Ada.lovelaceValueOf (oiOfferPrice oit)
-          --     ; let newValue = validatingValue - offerValue 
-          --     ; let a = traceIfFalse "Incorrect State"       $ ppt === oit                                                -- the token is getting an offer
-          --     ; let b = traceIfFalse "Incorrect Signer"      $ txSignedBy info (oiCustomerPKH oit)                        -- customer must sign it
-          --     ; let c = traceIfFalse "Incorrect Token Cont"  $ checkContTxOutForValue continuingTxOutputs newValue        -- token must go back to script
-          --     ; let d = traceIfFalse "Incorrect Token Chan"  $ checkTxOutForValueAtAddr txOutputs customerAddr offerValue -- token must go back to customer
-          --     ; let e = traceIfFalse "SingleScript Inputs"   $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-          --     ; let f = traceIfFalse "Job Is Still Printing" $ not $ overlaps (lockInterval (oiPrintTime oit)) validityRange
-          --     ; let g = traceIfFalse "Wrong Purchase Order"  $ Value.valueOf validatingValue (poPolicyId ppp) (oiPOName oit) == (1 :: Integer)
-          --     ; all (==(True :: Bool)) [a,b,c,d,e,f,g]
-          --     }
-          --   _ -> False
-        Ship -> True
-          -- case embeddedDatum continuingTxOutputs of
-          --   (CurrentlyShipping sit) -> do
-          --     { let a = traceIfFalse "Incorrect Signer"     $ txSignedBy info (oiPrinterPKH oit)                         -- printer must sign
-          --     ; let b = traceIfFalse "Incorrect Token Cont" $ checkContTxOutForValue continuingTxOutputs validatingValue -- token must go back to script
-          --     ; let c = traceIfFalse "Incorrect New State"  $ oit === sit                                                -- job is done printing and is now shipping
-          --     ; let d = traceIfFalse "SingleScript Inputs"  $ checkForNScriptInputs txInputs (1 :: Integer)              -- single script input
-          --     ; let e = traceIfFalse "Wrong Purchase Order" $ Value.valueOf validatingValue (poPolicyId ppp) (oiPOName oit) == (1 :: Integer)
-          --     ; all (==(True :: Bool)) [a,b,c,d,e]
-          --     }
-          --   _ -> False
+        -- | A printer is allowed to cancel an ongoing print job. 
+        Cancel ->
+          let offerValue      = adaValue $ oiOfferPrice oit
+              additionalValue = validatingValue - offerValue
+          in case getContinuingDatum contTxOutputs additionalValue of
+            (PrintingPool ppt) -> do
+              { let customerPkh  = ppCustomerPKH ppt
+              ; let customerSc   = ppCustomerSC  ppt
+              ; let customerAddr = createAddress customerPkh customerSc
+              ; let a = traceIfFalse "Incorrect Signer"        $ ContextsV2.txSignedBy info (oiPrinterPKH oit)              -- customer must sign it
+              ; let b = traceIfFalse "Offer Not Returned"      $ isAddrGettingPaidExactly txOutputs customerAddr offerValue -- token must go back to customer
+              ; let c = traceIfFalse "Single Script UTxO"      $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1         -- single script input
+              ; let d = traceIfFalse "Incorrect State"         $ checkPrintingOffer ppt oit                                 -- the token is getting an offer
+              ; let e = traceIfFalse "Wrong Purchase Order"    $ Value.valueOf validatingValue purchaseOrderPid (oiPOName oit) == (1 :: Integer)
+              ;         traceIfFalse "OfferInformation:Cancel" $ all (==(True :: Bool)) [a,b,c,d,e]
+              }
+            _ -> False
+        -- | A customer can remove their design from an offer after the print time has elasped.
+        Remove ->
+          let offerValue      = adaValue $ oiOfferPrice oit
+              additionalValue = validatingValue - offerValue
+          in case getContinuingDatum contTxOutputs additionalValue of
+            (PrintingPool ppt) -> do
+              { let customerPkh  = ppCustomerPKH ppt
+              ; let customerSc   = ppCustomerSC  ppt
+              ; let customerAddr = createAddress customerPkh customerSc
+              ; let a = traceIfFalse "Incorrect Signer"        $ ContextsV2.txSignedBy info customerPkh                     -- customer must sign it
+              ; let b = traceIfFalse "Offer Not Returned"      $ isAddrGettingPaidExactly txOutputs customerAddr offerValue -- token must go back to customer
+              ; let c = traceIfFalse "Single Script UTxO"      $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1         -- single script input
+              ; let d = traceIfFalse "Incorrect State"         $ checkPrintingOffer ppt oit                                 -- the token is getting an offer
+              ; let e = traceIfFalse "Wrong Purchase Order"    $ Value.valueOf validatingValue purchaseOrderPid (oiPOName oit) == (1 :: Integer)
+              ; let f = traceIfFalse "Job Is Still Printing"   $ not $ Interval.overlaps (lockUntilTimeInterval (oiPrintTime oit)) validityRange
+              ;         traceIfFalse "OfferInformation:Remove" $ all (==(True :: Bool)) [a,b,c,d,e,f]
+              }
+            _ -> False
+        Ship ->
+          case getContinuingDatum contTxOutputs validatingValue of
+            (CurrentlyShipping sit) -> do
+              { let a = traceIfFalse "Incorrect Signer"      $ ContextsV2.txSignedBy info (oiPrinterPKH oit)        -- printer must sign
+              ; let b = traceIfFalse "Single Script UTxO"    $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1   -- single script input
+              ; let c = traceIfFalse "Incorrect New State"   $ checkShippingStatus oit sit                          -- job is done printing and is now shipping
+              ; let d = traceIfFalse "Wrong Purchase Order"  $ Value.valueOf validatingValue purchaseOrderPid (oiPOName oit) == (1 :: Integer)
+              ;         traceIfFalse "OfferInformation:Ship" $ all (==(True :: Bool)) [a,b,c,d]
+              }
+            _ -> False
+        -- | other endpoints fail for offerinformation
         _ -> False
-    (CurrentlyShipping sit) ->
-      case redeemer of
-        Accept -> True -- do
+    {- | CurrentShipping ShippingInfoType
+
+      Handles the shipping and payout of the final product.
+    -}
+    (CurrentlyShipping sit) -> True
+      -- case redeemer of
+        -- Accept -> True -- do
         --   { let customerPkh  = siCustomerPKH sit
         --   ; let customerSc   = siCustomerSC  sit
         --   ; let customerAddr = createAddress customerPkh customerSc
@@ -220,10 +241,10 @@ mkValidator datum redeemer context =
                 Nothing     -> getContinuingDatum xs val              -- bad data
                 Just inline -> inline
         else getContinuingDatum xs val
-  
 
-  --   validityRange :: POSIXTimeRange
-  --   validityRange = txInfoValidRange info
+    -- the validity range for the spending tx
+    validityRange :: PlutusV2.POSIXTimeRange
+    validityRange = PlutusV2.txInfoValidRange info
 -------------------------------------------------------------------------------
 -- | Now we need to compile the Validator.
 -------------------------------------------------------------------------------
