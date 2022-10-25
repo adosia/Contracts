@@ -21,7 +21,7 @@ def changeLockHash(oldPath,newPath,newText):
                 file2.write(line)
 
 def changeStartLockPid(oldPath,newPath,newText):
-    pattern = 'lockPid = PlutusV2.CurrencySymbol {PlutusV2.unCurrencySymbol = createBuiltinByteString'
+    pattern = 'purchaseOrderPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString'
     with open(oldPath, 'r') as file1:
         with open(newPath, 'w+') as file2:
             for line in file1:

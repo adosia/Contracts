@@ -26,4 +26,23 @@ python3 -c "import binascii;a='$(cat policy.id)';s=binascii.unhexlify(a);print([
 echo -e "\nPolicy Id:" $(cat policy.id)
 echo -e "\nPolicy Bytes:" $(cat policy.bytes)
 
+cd ..
+
+# adds in the locking hash into the script
+python3 -c "from update_contracts import changeStartLockPid;changeStartLockPid('./printing-pool/src/PrintingPool.hs', './printing-pool/src/PrintingPool-new.hs', $(cat ./invoice-minting/policy.bytes))"
+mv ./printing-pool/src/PrintingPool-new.hs ./printing-pool/src/PrintingPool.hs
+
+cd printing-pool
+
+cabal build -w ghc-8.10.7
+cabal run printing-pool
+
+cardano-cli address build --payment-script-file printing-pool.plutus --testnet-magic 2 --out-file validator.addr
+cardano-cli transaction policyid --script-file printing-pool.plutus > validator.hash
+python3 -c "import binascii;a='$(cat validator.hash)';s=binascii.unhexlify(a);print([x for x in s])" > validator.bytes
+
+echo -e "\nValidator Testnet Address:" $(cat validator.addr)
+echo -e "\nValidator Hash:" $(cat validator.hash)
+echo -e "\nValidator Bytes:" $(cat validator.bytes)
+
 echo "DONE"
