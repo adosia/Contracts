@@ -49,18 +49,22 @@ import           UsefulFuncs
   Version  : Rev 1
 -}
 -------------------------------------------------------------------------------
+-- | Starter Token Information
+-------------------------------------------------------------------------------
+-- starter policy id
+startPid :: PlutusV2.CurrencySymbol
+startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [246, 30, 28, 29, 56, 252, 78, 91, 7, 52, 50, 154, 75, 123, 130, 11, 118, 187, 142, 7, 41, 69, 140, 21, 60, 66, 72, 234] }
+-------------------------------------------------------------------------------
 -- | Marketplace Validator Hash
 -------------------------------------------------------------------------------
 marketValidatorHash :: PlutusV2.ValidatorHash
-marketValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString [151, 161, 215, 105, 57, 80, 155, 87, 96, 25, 192, 16, 224, 145, 111, 155, 226, 145, 26, 25, 215, 146, 147, 13, 7, 171, 138, 147]
+marketValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString [173, 130, 190, 238, 211, 72, 181, 111, 84, 56, 202, 59, 151, 198, 230, 150, 234, 157, 15, 88, 102, 174, 209, 234, 40, 78, 157, 194]
 -------------------------------------------------------------------------------
 data MarketDataType = MarketDataType
   { mDesignerPKH :: PlutusV2.PubKeyHash
   -- ^ The Designer's payment public key hash.
   , mDesignerSC  :: PlutusV2.PubKeyHash
   -- ^ The Designer's staking credential.
-  , mStartPolicy :: PlutusV2.CurrencySymbol
-  -- ^ Starting Policy ID for the designer.
   , mStartName   :: PlutusV2.TokenName
   -- ^ Starting Token Name for the designer.
   , mNumber      :: Integer
@@ -107,7 +111,7 @@ mkPolicy redeemer context = do
     checkVal = 
       case valueAtValidator of
         Nothing              -> traceIfFalse "Marketplace Script Not Being Used" False
-        Just validatingValue -> Value.valueOf validatingValue (mStartPolicy redeemer') (mStartName redeemer') == (1 :: Integer)
+        Just validatingValue -> Value.valueOf validatingValue startPid (mStartName redeemer') == (1 :: Integer)
 
     -- minting an invoce nft
     checkMintedAmount :: Bool
@@ -122,7 +126,7 @@ mkPolicy redeemer context = do
     checkInputs [] = False
     checkInputs (x:xs) =
       if PlutusV2.txOutAddress (PlutusV2.txInInfoResolved x) == Addr.scriptHashAddress marketValidatorHash
-        then Value.valueOf (PlutusV2.txOutValue (PlutusV2.txInInfoResolved x)) (mStartPolicy redeemer') (mStartName redeemer') == (1 :: Integer)
+        then Value.valueOf (PlutusV2.txOutValue (PlutusV2.txInInfoResolved x)) startPid (mStartName redeemer') == (1 :: Integer)
         else checkInputs xs
     
 -------------------------------------------------------------------------------

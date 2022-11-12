@@ -49,12 +49,19 @@ import           TokenHelper
   Version  : Rev 1
 -}
 -------------------------------------------------------------------------------
+-- | Starter Token Information
+-------------------------------------------------------------------------------
+startPid :: PlutusV2.CurrencySymbol
+startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [246, 30, 28, 29, 56, 252, 78, 91, 7, 52, 50, 154, 75, 123, 130, 11, 118, 187, 142, 7, 41, 69, 140, 21, 60, 66, 72, 234] }
+-------------------------------------------------------------------------------
 -- | Create the redeemer type.
 -------------------------------------------------------------------------------
-data CustomRedeemerType = MintPO |
+data CustomRedeemerType = MintPO   IncreaseData |
+                          UpdatePO IncreaseData |
                           Remove
-PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'MintPO, 0 )
-                                                , ( 'Remove, 1 )
+PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'MintPO,   0 )
+                                                , ( 'UpdatePO, 1 )
+                                                , ( 'Remove,   2 )
                                                 ]
 -------------------------------------------------------------------------------
 -- | mkValidator :: Datum -> Redeemer -> ScriptContext -> Bool
@@ -63,17 +70,27 @@ PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'MintPO, 0 )
 mkValidator :: MarketDataType -> CustomRedeemerType -> PlutusV2.ScriptContext -> Bool
 mkValidator datum redeemer context =
   case redeemer of
-    MintPO -> do
+    (MintPO _) -> do
       { let designerPkh   = mDesignerPKH datum
       ; let designerSc    = mDesignerSC  datum
       ; let designerAddr  = createAddress designerPkh designerSc
-      ; let a = traceIfFalse "Starting NFT"    $ Value.valueOf validatingValue (mStartPolicy datum) (mStartName datum) == (1 :: Integer)
+      ; let a = traceIfFalse "Starter NFT"    $ Value.valueOf validatingValue startPid (mStartName datum) == (1 :: Integer)
       ; let b = traceIfFalse "Single Script"   $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1
       ; let c = traceIfFalse "Designer Payout" $ isAddrGettingPaidExactly txOutputs designerAddr (adaValue $ mPoPrice datum)
       ; let d = traceIfFalse "Minting Info"    checkMintedAmount
       ; let e = traceIfFalse "In/Out Datum"    $ isEmbeddedDatumIncreasing contTxOutputs
       ;         traceIfFalse "MintPO Endpoint" $ all (==True) [a,b,c,d,e]
       }
+    (UpdatePO ud) ->  let incomingValue = validatingValue + adaValue (uInc ud) in 
+      case getOutboundDatumByValue contTxOutputs incomingValue of
+        Nothing            -> traceIfFalse "UpdatePO:GetOutboundDatumByValue Error" False
+        Just incomingDatum -> do
+          { let designerPkh   = mDesignerPKH datum
+          ; let a = traceIfFalse "Wrong Signer"   $ ContextsV2.txSignedBy info designerPkh
+          ; let b = traceIfFalse "Single Script"  $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1
+          ; let c = traceIfFalse "In/Out Datum"   $ updateSalePrice datum incomingDatum
+          ;         traceIfFalse "UpdatePO Error" $ all (==True) [a,b,c]
+          }
     Remove -> do
       { let designerPkh  = mDesignerPKH datum
       ; let designerSc   = mDesignerSC  datum
@@ -100,7 +117,7 @@ mkValidator datum redeemer context =
     validatingValue :: PlutusV2.Value
     validatingValue =
       case ContextsV2.findOwnInput context of
-        Nothing    -> traceError "No Input to Validate." -- This error should never be hit.
+        Nothing    -> traceError "No Input to Validate."
         Just input -> PlutusV2.txOutValue $ PlutusV2.txInInfoResolved input
     
     -- minting stuff
@@ -125,6 +142,21 @@ mkValidator datum redeemer context =
                 Nothing     -> isEmbeddedDatumIncreasing xs              -- bad data
                 Just inline -> traceIfFalse "Datum equality failure" $ checkDatumIncrease datum inline
         else isEmbeddedDatumIncreasing xs
+    
+    getOutboundDatumByValue :: [PlutusV2.TxOut] -> PlutusV2.Value -> Maybe MarketDataType
+    getOutboundDatumByValue []     _   = Nothing
+    getOutboundDatumByValue (x:xs) val =
+      if PlutusV2.txOutValue x == val -- strict value continue
+        then
+          case PlutusV2.txOutDatum x of
+            PlutusV2.NoOutputDatum       -> getOutboundDatumByValue xs val -- skip datumless
+            (PlutusV2.OutputDatumHash _) -> getOutboundDatumByValue xs val -- skip embedded datum
+            -- inline datum only
+            (PlutusV2.OutputDatum (PlutusV2.Datum d)) -> 
+              case PlutusTx.fromBuiltinData d of
+                Nothing     -> getOutboundDatumByValue xs val
+                Just inline -> Just $ PlutusTx.unsafeFromBuiltinData @MarketDataType inline
+        else getOutboundDatumByValue xs val
 -------------------------------------------------------------------------------
 -- | Now we need to compile the Validator.
 -------------------------------------------------------------------------------

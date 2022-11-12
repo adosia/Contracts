@@ -31,8 +31,8 @@ nft_lock_value=$lock_min_utxo
 nft_lock_script_reference_utxo="${reference_address} + ${nft_lock_value}"
 nft_mint_script_reference_utxo="${reference_address} + ${nft_mint_value}"
 
-echo -e "\nCreating NFT Locking Reference:\n" ${nft_lock_script_reference_utxo}
-echo -e "\nCreating NFT Minting Reference:\n" ${nft_mint_script_reference_utxo}
+echo -e "\nCreating Marketplace Reference:\n" ${nft_lock_script_reference_utxo}
+echo -e "\nCreating Invoice Reference:\n" ${nft_mint_script_reference_utxo}
 #
 # exit
 #
@@ -72,7 +72,7 @@ ${cli} transaction build-raw \
 FEE=$(${cli} transaction calculate-min-fee --tx-body-file tmp/tx.draft ${network} --protocol-params-file tmp/protocol.json --tx-in-count 0 --tx-out-count 0 --witness-count 1)
 # echo $FEE
 fee=$(echo $FEE | rev | cut -c 9- | rev)
-# echo $fee
+echo $fee
 # exit
 firstReturn=$((${starting_reference_lovelace} - ${nft_mint_value} - ${nft_lock_value} - ${fee}))
 # echo $firstReturn
@@ -106,4 +106,4 @@ ${cli} transaction submit \
     --tx-file tmp/tx-1.signed
 
 
-cp tmp/tx-1.signed tmp/tx-reference-utxo.signed
+cp tmp/tx-1.signed tmp/tx-marketplace-reference-utxo.signed

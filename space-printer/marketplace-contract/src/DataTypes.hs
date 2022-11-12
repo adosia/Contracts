@@ -27,15 +27,16 @@
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
 module DataTypes
   ( MarketDataType (..)
+  , IncreaseData (..)
   , checkDatumIncrease
+  , updateSalePrice
   ) where
 import qualified PlutusTx
 import           PlutusTx.Prelude
-import qualified Plutus.V2.Ledger.Api   as PlutusV2
+import qualified Plutus.V2.Ledger.Api as PlutusV2
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
-  Version  : Rev 1
 -}
 -------------------------------------------------------------------------------
 -- | Custom Data Object
@@ -45,8 +46,6 @@ data MarketDataType = MarketDataType
   -- ^ The Designer's payment public key hash.
   , mDesignerSC  :: PlutusV2.PubKeyHash
   -- ^ The Designer's staking credential.
-  , mStartPolicy :: PlutusV2.CurrencySymbol
-  -- ^ Starting Policy ID for the designer.
   , mStartName   :: PlutusV2.TokenName
   -- ^ Starting Token Name for the designer.
   , mNumber      :: Integer
@@ -63,8 +62,25 @@ PlutusTx.unstableMakeIsData ''MarketDataType
 checkDatumIncrease :: MarketDataType -> MarketDataType -> Bool
 checkDatumIncrease a b =  ( mDesignerPKH a == mDesignerPKH b ) &&
                           ( mDesignerSC  a == mDesignerSC  b ) &&
-                          ( mStartPolicy a == mStartPolicy b ) &&
                           ( mStartName   a == mStartName   b ) &&
                           ( mNumber  a + 1 == mNumber      b ) &&
                           ( mPoPolicy    a == mPoPolicy    b ) &&
+                          ( mPrefixName  a == mPrefixName  b ) &&
                           ( mPoPrice     a == mPoPrice     b )
+
+updateSalePrice :: MarketDataType -> MarketDataType -> Bool
+updateSalePrice a b = ( mDesignerPKH a == mDesignerPKH b ) &&
+                      ( mDesignerSC  a == mDesignerSC  b ) &&
+                      ( mStartName   a == mStartName   b ) &&
+                      ( mNumber      a == mNumber      b ) &&
+                      ( mPoPolicy    a == mPoPolicy    b ) &&
+                      ( mPrefixName  a == mPrefixName  b ) &&
+                      ( mPoPrice     a /= mPoPrice     b )
+-------------------------------------------------------------------------------
+-- | Update Data Structure
+-------------------------------------------------------------------------------
+data IncreaseData = IncreaseData
+  { uInc :: Integer
+  -- ^ The potential lovelace increase required for an update.
+  }
+PlutusTx.unstableMakeIsData ''IncreaseData

@@ -40,8 +40,8 @@ def changeStartLockTkn(oldPath,newPath,newText):
                     line = pattern + " " + str(newText) + " }\n"
                 file2.write(line)
 
-def changeStartVotePid(oldPath,newPath,newText):
-    pattern = 'voteStartPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString'
+def changeStartPid(oldPath,newPath,newText):
+    pattern = 'startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString'
     with open(oldPath, 'r') as file1:
         with open(newPath, 'w+') as file2:
             for line in file1:
@@ -50,8 +50,8 @@ def changeStartVotePid(oldPath,newPath,newText):
                     line = pattern + " " + str(newText) + " }\n"
                 file2.write(line)
 
-def changeStartVoteTkn(oldPath,newPath,newText):
-    pattern = 'voteStartTkn = PlutusV2.TokenName { PlutusV2.unTokenName = createBuiltinByteString'
+def changeStartTkn(oldPath,newPath,newText):
+    pattern = 'startTkn = PlutusV2.TokenName { PlutusV2.unTokenName = createBuiltinByteString'
     with open(oldPath, 'r') as file1:
         with open(newPath, 'w+') as file2:
             for line in file1:
