@@ -15,14 +15,14 @@ lock_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --tx-out-reference-script-file ${marketplace_script_path} \
-    --tx-out="${reference_address} 5000000" | tr -dc '0-9')
+    --tx-out="${reference_address} + 5000000" | tr -dc '0-9')
 echo "Marketplace Min Fee" ${lock_min_utxo}
 
 mint_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --tx-out-reference-script-file ${invoice_script_path} \
-    --tx-out="${reference_address} 5000000" | tr -dc '0-9')
+    --tx-out="${reference_address} + 5000000" | tr -dc '0-9')
 echo "Invoice Min Fee" ${mint_min_utxo}
 
 echo

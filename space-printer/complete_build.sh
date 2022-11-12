@@ -53,7 +53,7 @@ echo -e "\033[1;33m Policy Id: $(cat policy.id) \033[0m"
 echo -e "\033[1;33m Policy Bytes: $(cat policy.bytes) \033[0m" 
 
 # update the register redeemer to put the stake key on chain
-variable=$(cat policy.id); jq --arg variable "$variable" '.fields[5].bytes=$variable' ../scripts/marketplace-scripts/data/datum/token_sale_datum.json > ../scripts/marketplace-scripts/data/datum/token_sale_datum-new.json
+variable=$(cat policy.id); jq --arg variable "$variable" '.fields[4].bytes=$variable' ../scripts/marketplace-scripts/data/datum/token_sale_datum.json > ../scripts/marketplace-scripts/data/datum/token_sale_datum-new.json
 mv ../scripts/marketplace-scripts/data/datum/token_sale_datum-new.json ../scripts/marketplace-scripts/data/datum/token_sale_datum.json
 
 exit

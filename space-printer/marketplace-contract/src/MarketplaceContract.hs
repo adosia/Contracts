@@ -70,17 +70,20 @@ PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'MintPO,   0 )
 mkValidator :: MarketDataType -> CustomRedeemerType -> PlutusV2.ScriptContext -> Bool
 mkValidator datum redeemer context =
   case redeemer of
-    (MintPO _) -> do
-      { let designerPkh   = mDesignerPKH datum
-      ; let designerSc    = mDesignerSC  datum
-      ; let designerAddr  = createAddress designerPkh designerSc
-      ; let a = traceIfFalse "Starter NFT"    $ Value.valueOf validatingValue startPid (mStartName datum) == (1 :: Integer)
-      ; let b = traceIfFalse "Single Script"   $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1
-      ; let c = traceIfFalse "Designer Payout" $ isAddrGettingPaidExactly txOutputs designerAddr (adaValue $ mPoPrice datum)
-      ; let d = traceIfFalse "Minting Info"    checkMintedAmount
-      ; let e = traceIfFalse "In/Out Datum"    $ isEmbeddedDatumIncreasing contTxOutputs
-      ;         traceIfFalse "MintPO Endpoint" $ all (==True) [a,b,c,d,e]
-      }
+    (MintPO ud) -> let incomingValue = validatingValue + adaValue (uInc ud) in 
+      case getOutboundDatumByValue contTxOutputs incomingValue of
+        Nothing            -> traceIfFalse "MintPO:GetOutboundDatumByValue Error" False
+        Just incomingDatum -> do
+          { let designerPkh   = mDesignerPKH datum
+          ; let designerSc    = mDesignerSC  datum
+          ; let designerAddr  = createAddress designerPkh designerSc
+          ; let a = traceIfFalse "Starter NFT"     $ Value.valueOf validatingValue startPid (mStartName datum) == (1 :: Integer)
+          ; let b = traceIfFalse "Single Script"   $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1
+          ; let c = traceIfFalse "Designer Payout" $ isAddrGettingPaidExactly txOutputs designerAddr (adaValue $ mPoPrice datum)
+          ; let d = traceIfFalse "Minting Info"    checkMintedAmount
+          ; let e = traceIfFalse "In/Out Datum"    $ checkDatumIncrease datum incomingDatum
+          ;         traceIfFalse "MintPO Endpoint" $ all (==True) [a,b,c,d,e]
+          }
     (UpdatePO ud) ->  let incomingValue = validatingValue + adaValue (uInc ud) in 
       case getOutboundDatumByValue contTxOutputs incomingValue of
         Nothing            -> traceIfFalse "UpdatePO:GetOutboundDatumByValue Error" False
@@ -124,24 +127,10 @@ mkValidator datum redeemer context =
     checkMintedAmount :: Bool
     checkMintedAmount =
       case Value.flattenValue (PlutusV2.txInfoMint info) of
-        [(cs, tkn, amt)] -> (cs == mPoPolicy datum) && ((Value.unTokenName tkn) == nftName (mPrefixName datum) (mNumber datum)) && (amt == (1 :: Integer))
+        [(cs, tkn, amt)] -> cs == mPoPolicy datum                                                && 
+                            Value.unTokenName tkn == nftName (mPrefixName datum) (mNumber datum) && 
+                            amt == (1 :: Integer)
         _                -> traceIfFalse "Incorrect Minting Info" False
-    
-    -- datum stuff
-    isEmbeddedDatumIncreasing :: [PlutusV2.TxOut] -> Bool
-    isEmbeddedDatumIncreasing []     = traceIfFalse "No Increasing Datum Found" False
-    isEmbeddedDatumIncreasing (x:xs) =
-      if PlutusV2.txOutValue x == validatingValue -- strict value continue
-        then
-          case PlutusV2.txOutDatum x of
-            PlutusV2.NoOutputDatum       -> isEmbeddedDatumIncreasing xs -- datumless
-            (PlutusV2.OutputDatumHash _) -> isEmbeddedDatumIncreasing xs -- embedded datum
-            -- inline datum only
-            (PlutusV2.OutputDatum (PlutusV2.Datum d)) -> 
-              case PlutusTx.fromBuiltinData d of
-                Nothing     -> isEmbeddedDatumIncreasing xs              -- bad data
-                Just inline -> traceIfFalse "Datum equality failure" $ checkDatumIncrease datum inline
-        else isEmbeddedDatumIncreasing xs
     
     getOutboundDatumByValue :: [PlutusV2.TxOut] -> PlutusV2.Value -> Maybe MarketDataType
     getOutboundDatumByValue []     _   = Nothing

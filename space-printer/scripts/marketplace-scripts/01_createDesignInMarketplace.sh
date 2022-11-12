@@ -20,7 +20,6 @@ echo -e "\nDesigner:" ${designer_address}
 
 # asset to trade
 starterPid=$(cat ../../start_info.json | jq -r .starterPid)
-# This is know at the time of design mint, either designer has it or is minted
 starterTkn="5468697349734f6e6553746172746572546f6b656e466f7254657374696e6731"
 
 echo -e "\033[1;35m \nEnter The Design Name:\n \033[0m" 
@@ -36,11 +35,11 @@ echo "Design Name: ${designName}"
 
 designTkn=$(echo -n ${designName} | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
 
-# # update the register redeemer to put the stake key on chain
+# update the register redeemer to put the stake key on chain
 variable=${starterTkn}; jq --arg variable "$variable" '.fields[2].bytes=$variable' ./data/datum/token_sale_datum.json > ./data/datum/token_sale_datum-new.json
 mv ./data/datum/token_sale_datum-new.json ./data/datum/token_sale_datum.json
 
-# # update the register redeemer to put the stake key on chain
+# update the register redeemer to put the stake key on chain
 variable=${designTkn}; jq --arg variable "$variable" '.fields[5].bytes=$variable' ./data/datum/token_sale_datum.json > ./data/datum/token_sale_datum-new.json
 mv ./data/datum/token_sale_datum-new.json ./data/datum/token_sale_datum.json
 

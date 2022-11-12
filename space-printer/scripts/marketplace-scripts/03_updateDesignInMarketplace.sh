@@ -61,7 +61,7 @@ updated_min_utxo=$(${cli} transaction calculate-min-required-utxo \
 
 difference=$((${updated_min_utxo} - ${current_min_utxo}))
 
-if [ "$difference" -lt "0" ]; then
+if [ "$difference" -le "0" ]; then
     min_utxo=${current_min_utxo}
 
     # update the increase ada in the redeemer
@@ -83,7 +83,7 @@ echo -e "\nCreating A New Token Sale In The Marketplace:\n" ${design_to_be_updat
 #
 # exit
 #
-echo -e "\033[0;36m Getting Customer UTxO Information  \033[0m"
+echo -e "\033[0;36m Getting Designer UTxO Information  \033[0m"
 ${cli} query utxo \
     --testnet-magic ${testnet_magic} \
     --address ${designer_address} \
