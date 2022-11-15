@@ -77,8 +77,6 @@ ${cli} transaction build-raw \
     --tx-out-reference-script-file ${marketplace_script_path} \
     --tx-out="${nft_mint_script_reference_utxo}" \
     --tx-out-reference-script-file ${invoice_script_path} \
-    --tx-out="${nft_pool_script_reference_utxo}" \
-    --tx-out-reference-script-file ${printing_pool_script_path} \
     --fee 900000
 
 FEE=$(${cli} transaction calculate-min-fee --tx-body-file tmp/tx.draft ${network} --protocol-params-file tmp/protocol.json --tx-in-count 0 --tx-out-count 0 --witness-count 1)

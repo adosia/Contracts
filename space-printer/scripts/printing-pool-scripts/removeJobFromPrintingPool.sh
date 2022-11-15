@@ -2,8 +2,8 @@
 set -e
 
 # SET UP VARS HERE
-export CARDANO_NODE_SOCKET_PATH=$(cat pathToSocket.sh)
-cli=$(cat pathToCli.sh)
+export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
+cli=$(cat path_to_cli.sh)
 
 script_path="../../printing-pool/printing_pool.plutus"
 

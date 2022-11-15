@@ -7,9 +7,9 @@ cli=$(cat path_to_cli.sh)
 testnet_magic=2
 
 # Addresses
-sender_address=$(cat wallets/customer/payment.addr)
-# receiver_address=$(cat wallets/customer/payment.addr)
-receiver_address="addr_test1qrp98gmajj0p423gkf35q2c890m7ygr6az82htthwhehu9qtq9jtz4znnkg3d7zhp0zluwpea5x4xjkxyv3kxmdlvpaqr8lhr3"
+sender_address=$(cat wallets/designer/payment.addr)
+receiver_address=$(cat wallets/printer/payment.addr)
+# receiver_address="addr_test1qrp98gmajj0p423gkf35q2c890m7ygr6az82htthwhehu9qtq9jtz4znnkg3d7zhp0zluwpea5x4xjkxyv3kxmdlvpaqr8lhr3"
 
 # Define Asset to be printed here
 asset="1 a1ed61af557275daca2f67c362f4ce99297ac3561d4f918fa1c6a64d.64657369676e5f30"
@@ -49,7 +49,7 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${sender_address} \
     --tx-in ${HEXTXIN} \
-    --tx-out="${change_return_out}" \
+    --tx-out="${token_to_be_traded}" \
     --testnet-magic ${testnet_magic})
 
 IFS=':' read -ra VALUE <<< "${FEE}"
@@ -61,7 +61,7 @@ echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
-    --signing-key-file wallets/customer/payment.skey \
+    --signing-key-file wallets/designer/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
     --testnet-magic ${testnet_magic}

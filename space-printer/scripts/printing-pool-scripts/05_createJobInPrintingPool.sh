@@ -2,36 +2,40 @@
 set -e
 
 # SET UP VARS HERE
-export CARDANO_NODE_SOCKET_PATH=$(cat pathToSocket.sh)
-cli=$(cat pathToCli.sh)
-script_path="../../printing-pool/printing_pool.plutus"
+export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
+cli=$(cat path_to_cli.sh)
+testnet_magic=2
+script_path="../../printing-pool/printing-pool.plutus"
 
 # Addresses
-script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic 1097911063)
+script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic ${testnet_magic})
 echo -e "Script: " $script_address
 
 customer_address=$(cat wallets/customer/payment.addr)
 echo -e "\nCustomer:" ${customer_address}
 
-# Define Asset to be printed here
-policy_id="088e1964087c9a0415439fa641184f882f422b74c0ea77995dd765bf"
-token_hex="50757263686173654f726465725f31"
-asset="1 ${policy_id}.${token_hex}"
+# purchase order info
+poPid=$(cat ../marketplace-scripts/data/datum/token_sale_datum.json | jq -r .fields[4].bytes)
+poNum=$(cat ../marketplace-scripts/data/datum/token_sale_datum.json | jq -r .fields[3].int)
+prevPoNum=$((${poNum} - 1))
+poTkn=$(cat ../marketplace-scripts/data/datum/token_sale_datum.json | jq -r .fields[5].bytes)$(echo -n ${prevPoNum} | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
+asset="1 ${poPid}.${poTkn}"
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
-    --alonzo-era \
+    --babbage-era \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
-    --tx-out="${script_address} ${asset}" | tr -dc '0-9')
+    --tx-out-datum-embed-file data/datum/printing_pool_datum.json \
+    --tx-out="${script_address} + 5000000 + ${asset}" | tr -dc '0-9')
+
 customer_job_to_be_printed="${script_address} + ${min_utxo} + ${asset}"
 echo -e "\nCreating A New Printing Job:\n" ${customer_job_to_be_printed}
 #
-# exit
+exit
 #
 echo
 echo -e "\033[0;36m Getting Customer UTxO Information  \033[0m"
 ${cli} query utxo \
-    --testnet-magic 1097911063 \
+    --testnet-magic ${testnet_magic} \
     --address ${customer_address} \
     --out-file tmp/customer_utxo.json
 
@@ -53,7 +57,7 @@ FEE=$(${cli} transaction build \
     --tx-in ${HEXTXIN} \
     --tx-out="${customer_job_to_be_printed}" \
     --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
-    --testnet-magic 1097911063)
+    --testnet-magic ${testnet_magic})
 
 IFS=':' read -ra VALUE <<< "$FEE"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
@@ -67,11 +71,11 @@ ${cli} transaction sign \
     --signing-key-file wallets/customer/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
-    --testnet-magic 1097911063
+    --testnet-magic ${testnet_magic}
 #
 # exit
 #
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
-    --testnet-magic 1097911063 \
+    --testnet-magic ${testnet_magic} \
     --tx-file tmp/tx.signed
