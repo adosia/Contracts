@@ -85,7 +85,7 @@ if [ "${TXNS}" -eq "0" ]; then
 fi
 collat_utxo=$(jq -r 'keys[0]' tmp/collat_utxo.json)
 
-script_ref_utxo=$(${cli} transaction txid --tx-file tmp/tx-marketplace-reference-utxo.signed )
+script_ref_utxo=$(${cli} transaction txid --tx-file tmp/tx-marketplace-reference.signed )
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \

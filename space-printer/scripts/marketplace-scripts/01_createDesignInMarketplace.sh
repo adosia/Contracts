@@ -43,6 +43,12 @@ mv ./data/datum/token_sale_datum-new.json ./data/datum/token_sale_datum.json
 variable=${designTkn}; jq --arg variable "$variable" '.fields[5].bytes=$variable' ./data/datum/token_sale_datum.json > ./data/datum/token_sale_datum-new.json
 mv ./data/datum/token_sale_datum-new.json ./data/datum/token_sale_datum.json
 
+variable=0; jq --argjson variable "$variable" '.fields[3].int=$variable' ./data/datum/token_sale_datum.json > ./data/datum/token_sale_datum-new.json
+mv ./data/datum/token_sale_datum-new.json ./data/datum/token_sale_datum.json
+
+variable=1000000; jq --argjson variable "$variable" '.fields[6].int=$variable' ./data/datum/token_sale_datum.json > ./data/datum/token_sale_datum-new.json
+mv ./data/datum/token_sale_datum-new.json ./data/datum/token_sale_datum.json
+
 asset="1 ${starterPid}.${starterTkn}"
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \

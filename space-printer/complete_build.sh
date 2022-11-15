@@ -56,8 +56,6 @@ echo -e "\033[1;33m Policy Bytes: $(cat policy.bytes) \033[0m"
 variable=$(cat policy.id); jq --arg variable "$variable" '.fields[4].bytes=$variable' ../scripts/marketplace-scripts/data/datum/token_sale_datum.json > ../scripts/marketplace-scripts/data/datum/token_sale_datum-new.json
 mv ../scripts/marketplace-scripts/data/datum/token_sale_datum-new.json ../scripts/marketplace-scripts/data/datum/token_sale_datum.json
 
-exit
-
 cd ..
 
 # adds in the locking hash into the script
@@ -73,14 +71,16 @@ cardano-cli address build --payment-script-file printing-pool.plutus --testnet-m
 cardano-cli transaction policyid --script-file printing-pool.plutus > validator.hash
 python3 -c "import binascii;a='$(cat validator.hash)';s=binascii.unhexlify(a);print([x for x in s])" > validator.bytes
 
-echo -e "\nValidator Testnet Address:" $(cat validator.addr)
-echo -e "\nValidator Hash:" $(cat validator.hash)
-echo -e "\nValidator Bytes:" $(cat validator.bytes)
+
+echo 
+echo -e "\033[1;33m Validator Address: $(cat validator.addr) \033[0m" 
+echo -e "\033[1;33m Validator Hash: $(cat validator.hash) \033[0m" 
+echo -e "\033[1;33m Validator Bytes: $(cat validator.bytes) \033[0m" 
 
 # update datum stuff
 
 # update the register redeemer to put the stake key on chain
-variable=$(cat stake.hash); jq --arg variable "$variable" '.fields[0].fields[0].bytes=$variable' ../../scripts/data/redeemers/register-redeemer.json > ../../scripts/data/redeemers/register-redeemer-new.json
-mv ../../scripts/data/redeemers/register-redeemer-new.json ../../scripts/data/redeemers/register-redeemer.json
+# variable=$(cat stake.hash); jq --arg variable "$variable" '.fields[0].fields[0].bytes=$variable' ../../scripts/data/redeemers/register-redeemer.json > ../../scripts/data/redeemers/register-redeemer-new.json
+# mv ../../scripts/data/redeemers/register-redeemer-new.json ../../scripts/data/redeemers/register-redeemer.json
 
 echo "DONE"

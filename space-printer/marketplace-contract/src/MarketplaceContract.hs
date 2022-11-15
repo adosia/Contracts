@@ -127,11 +127,12 @@ mkValidator datum redeemer context =
     checkMintedAmount :: Bool
     checkMintedAmount =
       case Value.flattenValue (PlutusV2.txInfoMint info) of
-        [(cs, tkn, amt)] -> cs == mPoPolicy datum                                                && 
-                            Value.unTokenName tkn == nftName (mPrefixName datum) (mNumber datum) && 
-                            amt == (1 :: Integer)
+        [(cs, tkn, amt)] -> cs == mPoPolicy datum                                                && -- must be the invoice policy
+                            Value.unTokenName tkn == nftName (mPrefixName datum) (mNumber datum) && -- must have correct name
+                            amt == (1 :: Integer)                                                   -- must be nft
         _                -> traceIfFalse "Incorrect Minting Info" False
     
+    -- search for a datum by a specific value
     getOutboundDatumByValue :: [PlutusV2.TxOut] -> PlutusV2.Value -> Maybe MarketDataType
     getOutboundDatumByValue []     _   = Nothing
     getOutboundDatumByValue (x:xs) val =
