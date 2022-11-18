@@ -5,56 +5,55 @@ set -e
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 testnet_magic=2
-script_path="../../marketplace-contract/marketplace-contract.plutus"
 
-# get current params
-${cli} query protocol-parameters --testnet-magic ${testnet_magic} --out-file ./tmp/protocol.json
+script_path="../../printing-pool/printing-pool.plutus"
 
 # Addresses
 script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic ${testnet_magic})
 echo -e "Script: " $script_address
 
-# designer
-designer_address=$(cat wallets/designer/payment.addr)
-designer_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/designer/payment.vkey)
-echo -e "\nDesigner:" ${designer_address}
-
 # collat
 collat_address=$(cat wallets/collat/payment.addr)
 collat_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/collat/payment.vkey)
 
-# asset to trade
-starterPid=$(cat ../../start_info.json | jq -r .starterPid)
-starterTkn=$(cat ./data/datum/token_sale_datum.json  | jq -r .fields[2].bytes)
+# customer info
+customer_address=$(cat wallets/customer/payment.addr)
+customer_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallets/customer/payment.vkey)
+echo -e "Customer:" ${customer_address}
 
-asset="1 ${starterPid}.${starterTkn}"
+# Define Asset to be printed here
+
+# design info
+poPid=$(cat ../marketplace-scripts/data/datum/token_sale_datum.json | jq -r .fields[4].bytes)
+poTkn=$(cat data/datum/printing_pool_datum.json | jq -r .fields[0].fields[3].bytes)
+
+asset="1 ${poPid}.${poTkn}"
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
-    --protocol-params-file ./tmp/protocol.json \
-    --tx-out-inline-datum-file ./data/datum/token_sale_datum.json \
-    --tx-out="${script_address} + 5000000 + ${asset}" | tr -dc '0-9')
+    --protocol-params-file tmp/protocol.json \
+    --tx-out-inline-datum-file ./data/datum/printing_pool_datum.json \
+    --tx-out="${customer_address} + 5000000 + ${asset}" | tr -dc '0-9')
 
-design_to_be_removed="${designer_address} + ${min_utxo} + ${asset}"
-
-echo -e "\nCreating A New Token Sale In The Marketplace:\n" ${design_to_be_removed}
+customer_job_to_be_removed="${customer_address} + ${min_utxo} + ${asset}"
+echo -e "\nRemoving A New Printing Job:\n" ${customer_job_to_be_removed}
 #
 # exit
 #
 echo -e "\033[0;36m Getting Customer UTxO Information  \033[0m"
 ${cli} query utxo \
     --testnet-magic ${testnet_magic} \
-    --address ${designer_address} \
-    --out-file tmp/designer_utxo.json
+    --address ${customer_address} \
+    --out-file tmp/customer_utxo.json
 
-TXNS=$(jq length tmp/designer_utxo.json)
+TXNS=$(jq length tmp/customer_utxo.json)
 if [ "$TXNS" -eq "0" ]; then
-   echo -e "\n \033[0;31m NO UTxOs Found At ${designer_address} \033[0m \n";
+   echo -e "\n \033[0;31m NO UTxOs Found At ${customer_address} \033[0m \n";
    exit;
 fi
 alltxin=""
-TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/designer_utxo.json)
-designer_tx_in=${TXIN::-8}
+TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/customer_utxo.json)
+HEXTXIN=${TXIN::-8}
 
 echo -e "\033[0;36m Getting Script UTxO Information  \033[0m"
 ${cli} query utxo \
@@ -68,7 +67,7 @@ if [ "$TXNS" -eq "0" ]; then
    exit;
 fi
 alltxin=""
-TXIN=$(jq -r --arg alltxin "" --arg policy_id "$starterPid" --arg name "$starterTkn" 'to_entries[] | select(.value.value[$policy_id][$name] == 1) | .key | . + $alltxin + " --tx-in"' tmp/script_utxo.json)
+TXIN=$(jq -r --arg alltxin "" --arg policy_id "$poPid" --arg name "$poTkn" 'to_entries[] | select(.value.value[$policy_id][$name] == 1) | .key | . + $alltxin + " --tx-in"' tmp/script_utxo.json)
 script_tx_in=${TXIN::-8}
 
 # collat info
@@ -85,24 +84,23 @@ if [ "${TXNS}" -eq "0" ]; then
 fi
 collat_utxo=$(jq -r 'keys[0]' tmp/collat_utxo.json)
 
-script_ref_utxo=$(${cli} transaction txid --tx-file tmp/tx-marketplace-reference.signed )
+script_ref_utxo=$(${cli} transaction txid --tx-file ../marketplace-scripts/tmp/tx-printing-reference.signed )
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --out-file tmp/tx.draft \
-    --change-address ${designer_address} \
-    --tx-in-collateral="${collat_utxo}" \
-    --tx-in ${designer_tx_in} \
+    --change-address ${customer_address} \
+    --tx-in ${HEXTXIN} \
+    --tx-in-collateral ${collat_utxo} \
     --tx-in ${script_tx_in}  \
     --spending-tx-in-reference="${script_ref_utxo}#1" \
     --spending-plutus-script-v2 \
     --spending-reference-tx-in-inline-datum-present \
     --spending-reference-tx-in-redeemer-file ./data/redeemer/remove_redeemer.json \
-    --tx-out="${design_to_be_removed}" \
-    --required-signer-hash ${designer_pkh} \
-    --required-signer-hash ${collat_pkh} \
+    --tx-out="${customer_job_to_be_removed}" \
+    --required-signer-hash ${customer_pkh} \
     --testnet-magic ${testnet_magic})
 
 IFS=':' read -ra VALUE <<< "$FEE"
@@ -114,7 +112,7 @@ echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
-    --signing-key-file wallets/designer/payment.skey \
+    --signing-key-file wallets/customer/payment.skey \
     --signing-key-file wallets/collat/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \

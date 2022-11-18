@@ -7,23 +7,29 @@ cli=$(cat path_to_cli.sh)
 testnet_magic=2
 
 # Addresses
-sender_address=$(cat wallets/designer/payment.addr)
-receiver_address=$(cat wallets/printer/payment.addr)
-# receiver_address="addr_test1qrp98gmajj0p423gkf35q2c890m7ygr6az82htthwhehu9qtq9jtz4znnkg3d7zhp0zluwpea5x4xjkxyv3kxmdlvpaqr8lhr3"
+sender_wallet_path="wallets/printer/"
+sender_address=$(cat ${sender_wallet_path}payment.addr)
+sender_pkh=$(${cli} address key-hash --payment-verification-key-file ${sender_wallet_path}payment.vkey)
+
+receiver_wallet_path="wallets/printer/"
+receiver_address=$(cat ${receiver_wallet_path}payment.addr)
+receiver_pkh=$(${cli} address key-hash --payment-verification-key-file ${receiver_wallet_path}payment.vkey)
+
+# receiver_address="addr_test1qrupt9d9ug2ufnrrajp2q7gwvmrtzzgr80p5ug7q8nt4d66hu0s5mnhxh2853wtsgn9gdz6wuqtaqnkv0yk78p474d6qudapqh"
 
 # Define Asset to be printed here
-asset="1 a1ed61af557275daca2f67c362f4ce99297ac3561d4f918fa1c6a64d.64657369676e5f30"
+asset="1 f61e1c1d38fc4e5b0734329a4b7b820b76bb8e0729458c153c4248ea.5468697349734f6e6553746172746572546f6b656e466f7254657374696e6731"
 CHANGE_ASSET=""
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
     --tx-out="${receiver_address}+ 5000000 + ${asset}" | tr -dc '0-9')
 
-token_to_be_traded="${receiver_address} + 250000000"
-change_return_out="${receiver_address} + ${min_utxo} + ${asset}"
+token_to_be_traded="${receiver_address} + ${min_utxo} + ${asset}"
+change_return_out="${receiver_address} + 2500000"
 
 echo -e "\nTrading A Token:\n" ${token_to_be_traded}
-echo -e "\nTrading A Token:\n" ${change_return_out}
+# echo -e "\nTrading A Token:\n" ${change_return_out}
 #
 # exit
 #
@@ -50,6 +56,8 @@ FEE=$(${cli} transaction build \
     --change-address ${sender_address} \
     --tx-in ${HEXTXIN} \
     --tx-out="${token_to_be_traded}" \
+    --required-signer-hash ${sender_pkh} \
+    --required-signer-hash ${receiver_pkh} \
     --testnet-magic ${testnet_magic})
 
 IFS=':' read -ra VALUE <<< "${FEE}"
@@ -59,16 +67,29 @@ echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
 # exit
 #
-echo -e "\033[0;36m Signing \033[0m"
-${cli} transaction sign \
-    --signing-key-file wallets/designer/payment.skey \
+${cli} transaction witness \
     --tx-body-file tmp/tx.draft \
+    --signing-key-file ${sender_wallet_path}payment.skey \
+    --out-file tmp/tx.witness \
+    --testnet-magic 2
+
+echo -e "\033[0;36m Sender Is Signing \033[0m"
+${cli} transaction sign \
+    --signing-key-file ${sender_wallet_path}payment.skey \
+    --tx-body-file tmp/tx.draft \
+    --out-file tmp/tx.signed \
+    --testnet-magic ${testnet_magic}
+
+echo -e "\033[0;36m Receiver Is Signing \033[0m"
+${cli} transaction sign \
+    --signing-key-file ${receiver_wallet_path}payment.skey \
+    --tx-file tmp/tx.signed \
     --out-file tmp/tx.signed \
     --testnet-magic ${testnet_magic}
 #
 # exit
 #
-echo -e "\033[0;36m Submitting \033[0m"
+echo -e "\033[0;36m Submitting Tx \033[0m"
 ${cli} transaction submit \
     --testnet-magic ${testnet_magic} \
     --tx-file tmp/tx.signed

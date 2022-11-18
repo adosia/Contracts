@@ -50,7 +50,7 @@ import           UsefulFuncs
 -}
 -- minting policy id from the invoice minting contract.
 purchaseOrderPid :: PlutusV2.CurrencySymbol
-purchaseOrderPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [161, 237, 97, 175, 85, 114, 117, 218, 202, 47, 103, 195, 98, 244, 206, 153, 41, 122, 195, 86, 29, 79, 145, 143, 161, 198, 166, 77] }
+purchaseOrderPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [21, 192, 170, 236, 196, 192, 157, 36, 214, 200, 64, 24, 91, 110, 162, 173, 60, 7, 196, 132, 89, 176, 52, 42, 171, 215, 149, 24] }
 
 -------------------------------------------------------------------------------
 -- | Create the datum parameters data object.
@@ -58,9 +58,9 @@ purchaseOrderPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createB
 data CustomDatumType =  PrintingPool      PrintingPoolType     |
                         OfferInformation  OfferInformationType |
                         CurrentlyShipping ShippingInfoType
-PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ('PrintingPool,        0)
-                                              , ('OfferInformation,    1)
-                                              , ('CurrentlyShipping,   2)
+PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ('PrintingPool,      0)
+                                              , ('OfferInformation,  1)
+                                              , ('CurrentlyShipping, 2)
                                               ]
 -------------------------------------------------------------------------------
 -- | Create the redeemer parameters data object.

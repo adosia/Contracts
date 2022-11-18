@@ -16,21 +16,19 @@ echo -e "\nCustomer:" ${customer_address}
 
 # purchase order info
 poPid=$(cat ../marketplace-scripts/data/datum/token_sale_datum.json | jq -r .fields[4].bytes)
-poNum=$(cat ../marketplace-scripts/data/datum/token_sale_datum.json | jq -r .fields[3].int)
-prevPoNum=$((${poNum} - 1))
-poTkn=$(cat ../marketplace-scripts/data/datum/token_sale_datum.json | jq -r .fields[5].bytes)$(echo -n ${prevPoNum} | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
+poTkn=$(cat data/datum/printing_pool_datum.json | jq -r .fields[0].fields[3].bytes)
 asset="1 ${poPid}.${poTkn}"
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
-    --tx-out-datum-embed-file data/datum/printing_pool_datum.json \
+    --tx-out-inline-datum-file ./data/datum/printing_pool_datum.json \
     --tx-out="${script_address} + 5000000 + ${asset}" | tr -dc '0-9')
 
 customer_job_to_be_printed="${script_address} + ${min_utxo} + ${asset}"
 echo -e "\nCreating A New Printing Job:\n" ${customer_job_to_be_printed}
 #
-exit
+# exit
 #
 echo
 echo -e "\033[0;36m Getting Customer UTxO Information  \033[0m"
@@ -56,7 +54,7 @@ FEE=$(${cli} transaction build \
     --change-address ${customer_address} \
     --tx-in ${HEXTXIN} \
     --tx-out="${customer_job_to_be_printed}" \
-    --tx-out-datum-embed-file data/datums/printing_pool_datum.json \
+    --tx-out-inline-datum-file data/datum/printing_pool_datum.json \
     --testnet-magic ${testnet_magic})
 
 IFS=':' read -ra VALUE <<< "$FEE"

@@ -6,6 +6,7 @@ cli=$(cat path_to_cli.sh)
 testnet_magic=2
 
 script_path="../../marketplace-contract/marketplace-contract.plutus"
+pool_path="../../printing-pool/printing-pool.plutus"
 mint_path="../../invoice-minting/minting-contract.plutus"
 
 # get current params
@@ -13,7 +14,9 @@ ${cli} query protocol-parameters --testnet-magic ${testnet_magic} --out-file ./t
 
 # Addresses
 script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic ${testnet_magic})
-echo -e "Script:" ${script_address}
+pool_address=$(${cli} address build --payment-script-file ${pool_path} --testnet-magic ${testnet_magic})
+echo -e "Marketplace Address:" ${script_address}
+echo -e "Pool Address:" ${pool_address}
 
 # collat
 collat_address=$(cat wallets/collat/payment.addr)
@@ -38,6 +41,10 @@ poNum=$(cat data/datum/token_sale_datum.json | jq -r .fields[3].int)
 poPid=$(cat data/datum/token_sale_datum.json | jq -r .fields[4].bytes)
 poTkn=$(cat data/datum/token_sale_datum.json | jq -r .fields[5].bytes)$(echo -n ${poNum} | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
 mint_asset="1 ${poPid}.${poTkn}"
+
+# update the printing pool datum
+variable=${poTkn}; jq --arg variable "$variable" '.fields[0].fields[3].bytes=$variable' ../printing-pool-scripts/data/datum/printing_pool_datum.json > ../printing-pool-scripts/data/datum/printing_pool_datum-new.json
+mv ../printing-pool-scripts/data/datum/printing_pool_datum-new.json ../printing-pool-scripts/data/datum/printing_pool_datum.json
 
 # purchase order price
 poPrice=$(cat data/datum/token_sale_datum.json | jq -r .fields[6].int)
@@ -83,10 +90,11 @@ mv ./data/datum/updated_token_sale_datum.json ./data/datum/token_sale_datum.json
 mint_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
+    --tx-out-inline-datum-file ../printing-pool-scripts/data/datum/printing_pool_datum.json \
     --tx-out="${customer_address} + 5000000 + ${mint_asset}" | tr -dc '0-9')
 
 design_to_be_returned="${script_address} + ${min_utxo} + ${asset}"
-customer_address_out="${customer_address} + ${mint_min_utxo} + ${mint_asset}"
+customer_address_out="${pool_address} + ${mint_min_utxo} + ${mint_asset}"
 designer_address_out="${designer_address} + ${poPrice}"
 
 echo "Script OUTPUT: "${design_to_be_returned}
@@ -123,8 +131,9 @@ if [ "${TXNS}" -eq "0" ]; then
    exit;
 fi
 alltxin=""
-TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/script_utxo.json)
+TXIN=$(jq -r --arg alltxin "" --arg policy_id "$starterPid" --arg name "$starterTkn" 'to_entries[] | select(.value.value[$policy_id][$name] == 1) | .key | . + $alltxin + " --tx-in"' tmp/script_utxo.json)
 script_tx_in=${TXIN::-8}
+
 
 # collat info
 echo -e "\033[0;36m Gathering Collateral UTxO Information  \033[0m"
@@ -158,6 +167,7 @@ FEE=$(${cli} transaction build \
     --spending-reference-tx-in-redeemer-file ./data/redeemer/mint_redeemer.json \
     --tx-out="${designer_address_out}" \
     --tx-out="${customer_address_out}" \
+    --tx-out-inline-datum-file ../printing-pool-scripts/data/datum/printing_pool_datum.json \
     --tx-out="${design_to_be_returned}" \
     --tx-out-inline-datum-file ./data/datum/token_sale_datum.json \
     --required-signer-hash ${collat_pkh} \
@@ -174,7 +184,7 @@ IFS=' ' read -ra FEE <<< "${VALUE[1]}"
 FEE=${FEE[1]}
 echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
-exit
+# exit
 #
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \

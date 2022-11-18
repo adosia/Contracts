@@ -16,11 +16,8 @@ echo -e "Script: " $script_address
 
 designer_address=$(cat wallets/designer/payment.addr)
 designer_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/designer/payment.vkey)
+policy_pkh=$(${cli} address key-hash --payment-verification-key-file policy/policy.vkey)
 echo -e "\nDesigner:" ${designer_address}
-
-# asset to trade
-starterPid=$(cat ../../start_info.json | jq -r .starterPid)
-starterTkn="5468697349734f6e6553746172746572546f6b656e466f7254657374696e6731"
 
 echo -e "\033[1;35m \nEnter The Design Name:\n \033[0m" 
 
@@ -31,9 +28,19 @@ if [ ! "$designName" ];then
    exit
 fi
 echo
+designName=$(echo ${designName} | head -c 12 | tr -d '\n')
 echo "Design Name: ${designName}"
 
-designTkn=$(echo -n ${designName} | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
+# little random bit added to the design name
+randomBit=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 12)
+
+# asset to trade
+starterPid=$(cat ../../start_info.json | jq -r .starterPid)
+
+starterTkn=$(echo -n "${designName}${randomBit}" | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
+designTkn=$(echo -n "${designName}${randomBit}_" | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
+
+# exit
 
 # update the register redeemer to put the stake key on chain
 variable=${starterTkn}; jq --arg variable "$variable" '.fields[2].bytes=$variable' ./data/datum/token_sale_datum.json > ./data/datum/token_sale_datum-new.json
@@ -87,6 +94,10 @@ FEE=$(${cli} transaction build \
     --tx-in ${HEXTXIN} \
     --tx-out="${design_to_be_sold}" \
     --tx-out-inline-datum-file ./data/datum/token_sale_datum.json \
+    --mint-script-file policy/policy.script \
+    --mint="${asset}" \
+    --required-signer-hash ${designer_pkh} \
+    --required-signer-hash ${policy_pkh} \
     --testnet-magic ${testnet_magic})
 
 IFS=':' read -ra VALUE <<< "$FEE"
@@ -99,6 +110,7 @@ echo -e "\033[1;32m Fee: \033[0m" $FEE
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
     --signing-key-file wallets/designer/payment.skey \
+    --signing-key-file policy/policy.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
     --testnet-magic ${testnet_magic}

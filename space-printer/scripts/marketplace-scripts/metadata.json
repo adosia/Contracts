@@ -1,17 +1,1 @@
-{
-    "721": {
-        "name": "SpaceRocket",
-        "image": "ipfs:\/\/QmQWG57Vpq2pPfuzBn2bS8UEj4M1GnCa5PpqSU6k5fyNQC",
-        "glb_model": "ipfs:\/\/QmQTXTycfwuEfr4Lk6W1Za8UjzyQor2znwVKfd7Jy7DUaM",
-        "stl_models": [
-            {
-                "model_source": "ifps:\/\/QmRyBaGYu1bbthdkHUA2YjyUK43uPtKcoVuF8NpFk2Z6tm",
-                "print_quantity": 2
-            },
-            {
-                "model_source": "ifps:\/\/QmZCX5tXTko3wzyttK63SNTMpgfoGLwzUj7i6hA6tEWfqy",
-                "print_quantity": 1
-            }
-        ]
-    }
-}
+{"721":{"4e57975183ebb751878fae25c1c9973d06be0d99b8a970224fa7fa36":{"name":"Space Test 1"}}}

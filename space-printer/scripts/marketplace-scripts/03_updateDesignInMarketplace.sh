@@ -25,7 +25,7 @@ collat_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/col
 
 # asset to trade
 starterPid=$(cat ../../start_info.json | jq -r .starterPid)
-starterTkn="5468697349734f6e6553746172746572546f6b656e466f7254657374696e6731"
+starterTkn=$(cat ./data/datum/token_sale_datum.json  | jq -r .fields[2].bytes)
 
 asset="1 ${starterPid}.${starterTkn}"
 
@@ -110,8 +110,9 @@ if [ "$TXNS" -eq "0" ]; then
    exit;
 fi
 alltxin=""
-TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/script_utxo.json)
+TXIN=$(jq -r --arg alltxin "" --arg policy_id "$starterPid" --arg name "$starterTkn" 'to_entries[] | select(.value.value[$policy_id][$name] == 1) | .key | . + $alltxin + " --tx-in"' tmp/script_utxo.json)
 script_tx_in=${TXIN::-8}
+
 
 # collat info
 echo -e "\033[0;36m Gathering Collateral UTxO Information  \033[0m"

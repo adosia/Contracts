@@ -52,7 +52,7 @@ import           TokenHelper
 -- | Starter Token Information
 -------------------------------------------------------------------------------
 startPid :: PlutusV2.CurrencySymbol
-startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [246, 30, 28, 29, 56, 252, 78, 91, 7, 52, 50, 154, 75, 123, 130, 11, 118, 187, 142, 7, 41, 69, 140, 21, 60, 66, 72, 234] }
+startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [78, 87, 151, 81, 131, 235, 183, 81, 135, 143, 174, 37, 193, 201, 151, 61, 6, 190, 13, 153, 184, 169, 112, 34, 79, 167, 250, 54] }
 -------------------------------------------------------------------------------
 -- | Create the redeemer type.
 -------------------------------------------------------------------------------
