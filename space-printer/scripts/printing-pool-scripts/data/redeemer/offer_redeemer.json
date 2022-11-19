@@ -1,4 +1,13 @@
 {
   "constructor": 2,
-  "fields": []
+  "fields": [
+    {
+      "constructor": 0,
+      "fields": [
+        {
+          "int": 123456789
+        }
+      ]
+    }
+  ]
 }
