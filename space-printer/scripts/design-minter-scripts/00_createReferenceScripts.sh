@@ -22,35 +22,30 @@ market_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
     --tx-out-reference-script-file ${marketplace_script_path} \
     --tx-out="${reference_address} + 5000000" | tr -dc '0-9')
-echo "Marketplace Min Fee" ${market_min_utxo}
 
 invoice_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --tx-out-reference-script-file ${invoice_script_path} \
     --tx-out="${reference_address} + 5000000" | tr -dc '0-9')
-echo "Invoice Min Fee" ${invoice_min_utxo}
 
 pool_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --tx-out-reference-script-file ${printing_pool_script_path} \
     --tx-out="${reference_address} + 5000000" | tr -dc '0-9')
-echo "Printing Pool Min Fee" ${pool_min_utxo}
 
 design_lock_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --tx-out-reference-script-file ${design_lock_script_path} \
     --tx-out="${reference_address} + 5000000" | tr -dc '0-9')
-echo "Printing Pool Min Fee" ${design_lock_min_utxo}
 
 design_mint_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --tx-out-reference-script-file ${design_mint_script_path} \
     --tx-out="${reference_address} + 5000000" | tr -dc '0-9')
-echo "Printing Pool Min Fee" ${design_mint_min_utxo}
 
 echo
 nft_market_value=${market_min_utxo}

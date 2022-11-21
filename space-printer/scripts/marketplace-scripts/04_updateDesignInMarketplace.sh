@@ -24,7 +24,7 @@ collat_address=$(cat wallets/collat/payment.addr)
 collat_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/collat/payment.vkey)
 
 # asset to trade
-starterPid=$(cat ../../start_info.json | jq -r .starterPid)
+starterPid=$(cat ../design-minter-scripts/data/datum/token_design_datum.json | jq -r .fields[0].bytes)
 starterTkn=$(cat ./data/datum/token_sale_datum.json  | jq -r .fields[2].bytes)
 
 asset="1 ${starterPid}.${starterTkn}"
@@ -44,7 +44,7 @@ fi
 echo -e "New Design Price Is ${1} Lovelace\n" 
 
 # # update the register redeemer to put the stake key on chain
-variable=${1}; jq --argjson variable "$variable" '.fields[6].int=$variable' ./data/datum/updated_token_sale_datum.json > ./data/datum/updated_token_sale_datum-new.json
+variable=${1}; jq --argjson variable "$variable" '.fields[5].int=$variable' ./data/datum/updated_token_sale_datum.json > ./data/datum/updated_token_sale_datum-new.json
 mv ./data/datum/updated_token_sale_datum-new.json ./data/datum/updated_token_sale_datum.json
 
 current_min_utxo=$(${cli} transaction calculate-min-required-utxo \
@@ -128,7 +128,8 @@ if [ "${TXNS}" -eq "0" ]; then
 fi
 collat_utxo=$(jq -r 'keys[0]' tmp/collat_utxo.json)
 
-script_ref_utxo=$(${cli} transaction txid --tx-file tmp/tx-marketplace-reference.signed )
+script_ref_utxo=$(${cli} transaction txid --tx-file ../reference-txs/tx-marketplace-reference.signed)
+
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \

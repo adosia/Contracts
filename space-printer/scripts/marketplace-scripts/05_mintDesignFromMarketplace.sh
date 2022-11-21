@@ -15,8 +15,6 @@ ${cli} query protocol-parameters --testnet-magic ${testnet_magic} --out-file ./t
 # Addresses
 script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic ${testnet_magic})
 pool_address=$(${cli} address build --payment-script-file ${pool_path} --testnet-magic ${testnet_magic})
-echo -e "Marketplace Address:" ${script_address}
-echo -e "Pool Address:" ${pool_address}
 
 # collat
 collat_address=$(cat wallets/collat/payment.addr)
@@ -25,29 +23,28 @@ collat_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/col
 #
 customer_address=$(cat wallets/customer/payment.addr)
 customer_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallets/customer/payment.vkey)
-echo -e "Customer:" ${customer_address}
 
 #
 designer_address=$(cat wallets/designer/payment.addr)
-echo -e "Designer:" ${designer_address}
 
 # design info
-starterPid=$(cat ../../start_info.json | jq -r .starterPid)
+starterPid=$(cat ../design-minter-scripts/data/datum/token_design_datum.json | jq -r .fields[0].bytes)
 starterTkn=$(cat data/datum/token_sale_datum.json | jq -r .fields[2].bytes)
 asset="1 ${starterPid}.${starterTkn}"
 
 # purchase order info
 poNum=$(cat data/datum/token_sale_datum.json | jq -r .fields[3].int)
 poPid=$(cat data/datum/token_sale_datum.json | jq -r .fields[4].bytes)
-poTkn=$(cat data/datum/token_sale_datum.json | jq -r .fields[5].bytes)$(echo -n ${poNum} | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
+poTkn=$(cat data/datum/token_sale_datum.json | jq -r .fields[2].bytes)$(echo -n "_" | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')$(echo -n ${poNum} | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
 mint_asset="1 ${poPid}.${poTkn}"
+
 
 # update the printing pool datum
 variable=${poTkn}; jq --arg variable "$variable" '.fields[0].fields[3].bytes=$variable' ../printing-pool-scripts/data/datum/printing_pool_datum.json > ../printing-pool-scripts/data/datum/printing_pool_datum-new.json
 mv ../printing-pool-scripts/data/datum/printing_pool_datum-new.json ../printing-pool-scripts/data/datum/printing_pool_datum.json
 
 # purchase order price
-poPrice=$(cat data/datum/token_sale_datum.json | jq -r .fields[6].int)
+poPrice=$(cat data/datum/token_sale_datum.json | jq -r .fields[5].int)
 
 nextPoNum=$((${poNum} + 1))
 
@@ -149,7 +146,7 @@ if [ "${TXNS}" -eq "0" ]; then
 fi
 collat_utxo=$(jq -r 'keys[0]' tmp/collat_utxo.json)
 
-script_ref_utxo=$(${cli} transaction txid --tx-file tmp/tx-marketplace-reference.signed )
+script_ref_utxo=$(${cli} transaction txid --tx-file ../reference-txs/tx-marketplace-reference.signed)
 
 # exit
 echo -e "\033[0;36m Building Tx \033[0m"
@@ -184,7 +181,7 @@ IFS=' ' read -ra FEE <<< "${VALUE[1]}"
 FEE=${FEE[1]}
 echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
-# exit
+exit
 #
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \

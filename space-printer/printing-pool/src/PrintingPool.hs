@@ -50,7 +50,7 @@ import           UsefulFuncs
 -}
 -- minting policy id from the invoice minting contract.
 purchaseOrderPid :: PlutusV2.CurrencySymbol
-purchaseOrderPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [44, 39, 159, 225, 105, 22, 54, 79, 54, 165, 247, 25, 252, 86, 212, 223, 215, 17, 178, 66, 212, 13, 181, 92, 18, 119, 71, 43] }
+purchaseOrderPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [248, 99, 50, 55, 51, 158, 163, 248, 205, 129, 2, 121, 5, 16, 246, 68, 103, 252, 218, 131, 2, 23, 93, 243, 57, 68, 32, 36] }
 
 -------------------------------------------------------------------------------
 -- | Create the datum parameters data object.

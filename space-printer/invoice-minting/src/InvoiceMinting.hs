@@ -71,8 +71,6 @@ data MarketDataType = MarketDataType
   -- ^ The current design increment number.
   , mPoPolicy    :: PlutusV2.CurrencySymbol
   -- ^ The purchase order Policy ID.
-  , mPrefixName  :: PlutusV2.BuiltinByteString
-  -- ^ The purchase order Token Name Prefix.
   , mPoPrice     :: Integer
   -- ^ The purchase order price in lovelace.
   }
