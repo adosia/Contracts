@@ -20,6 +20,16 @@ def changeLockHash(oldPath,newPath,newText):
                     line = pattern + " " + str(newText) + "\n"
                 file2.write(line)
 
+def changeDesignLockHash(oldPath,newPath,newText):
+    pattern = 'designValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString'
+    with open(oldPath, 'r') as file1:
+        with open(newPath, 'w+') as file2:
+            for line in file1:
+                if pattern in line:
+                    # create teh new addition
+                    line = pattern + " " + str(newText) + "\n"
+                file2.write(line)
+
 def changeStartLockPid(oldPath,newPath,newText):
     pattern = 'purchaseOrderPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString'
     with open(oldPath, 'r') as file1:
@@ -40,6 +50,7 @@ def changeStartLockTkn(oldPath,newPath,newText):
                     line = pattern + " " + str(newText) + " }\n"
                 file2.write(line)
 
+
 def changeStartPid(oldPath,newPath,newText):
     pattern = 'startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString'
     with open(oldPath, 'r') as file1:
@@ -59,6 +70,7 @@ def changeStartTkn(oldPath,newPath,newText):
                     # create teh new addition
                     line = pattern + " " + str(newText) + " }\n"
                 file2.write(line)
+
 
 def changeTokenizedPid(oldPath,newPath,newText):
     pattern = 'tokenizedPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString'
