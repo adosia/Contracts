@@ -20,7 +20,7 @@ ${cli} query protocol-parameters --testnet-magic ${testnet_magic} --out-file tmp
 ${cli} query tip --testnet-magic ${testnet_magic} | jq
 
 echo
-echo "Script Address:" ${script}
+echo "Design Minter Script Address:" ${script}
 ${cli} query utxo --address ${script} --testnet-magic ${testnet_magic}
 
 echo
@@ -28,17 +28,5 @@ echo "Designer Address:" ${designer}
 ${cli} query utxo --address ${designer} --testnet-magic ${testnet_magic}
 
 echo
-echo "Customer Address:" ${customer}
-${cli} query utxo --address ${customer} --testnet-magic ${testnet_magic}
-
-echo
-echo "Printer Address:" ${printer}
-${cli} query utxo --address ${printer} --testnet-magic ${testnet_magic}
-
-echo
 echo "Reference Address:" ${reference}
 ${cli} query utxo --address ${reference} --testnet-magic ${testnet_magic}
-
-echo
-echo "Collat Address:" ${collat}
-${cli} query utxo --address ${collat} --testnet-magic ${testnet_magic}

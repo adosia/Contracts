@@ -20,7 +20,7 @@ ${cli} query protocol-parameters --testnet-magic ${testnet_magic} --out-file tmp
 ${cli} query tip --testnet-magic ${testnet_magic} | jq
 
 echo
-echo "Script Address:" ${script}
+echo "Marketplace Script Address:" ${script}
 ${cli} query utxo --address ${script} --testnet-magic ${testnet_magic}
 
 echo
