@@ -5,26 +5,31 @@ export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 network="--testnet-magic 2"
 
+# get params
+${cli} query protocol-parameters ${network} --out-file tmp/protocol.json
+
 marketplace_script_path="../../marketplace-contract/marketplace-contract.plutus"
 invoice_script_path="../../invoice-minting/minting-contract.plutus"
 printing_pool_script_path="../../printing-pool/printing-pool.plutus"
+design_lock_script_path="../../design-locking-contract/locking-contract.plutus"
+design_mint_script_path="../../design-minting-contract/minting-contract.plutus"
 
 # Addresses
 reference_address=$(cat wallets/reference/payment.addr)
 
-lock_min_utxo=$(${cli} transaction calculate-min-required-utxo \
+market_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --tx-out-reference-script-file ${marketplace_script_path} \
     --tx-out="${reference_address} + 5000000" | tr -dc '0-9')
-echo "Marketplace Min Fee" ${lock_min_utxo}
+echo "Marketplace Min Fee" ${market_min_utxo}
 
-mint_min_utxo=$(${cli} transaction calculate-min-required-utxo \
+invoice_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --tx-out-reference-script-file ${invoice_script_path} \
     --tx-out="${reference_address} + 5000000" | tr -dc '0-9')
-echo "Invoice Min Fee" ${mint_min_utxo}
+echo "Invoice Min Fee" ${invoice_min_utxo}
 
 pool_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
@@ -33,17 +38,38 @@ pool_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --tx-out="${reference_address} + 5000000" | tr -dc '0-9')
 echo "Printing Pool Min Fee" ${pool_min_utxo}
 
+design_lock_min_utxo=$(${cli} transaction calculate-min-required-utxo \
+    --babbage-era \
+    --protocol-params-file tmp/protocol.json \
+    --tx-out-reference-script-file ${design_lock_script_path} \
+    --tx-out="${reference_address} + 5000000" | tr -dc '0-9')
+echo "Printing Pool Min Fee" ${design_lock_min_utxo}
+
+design_mint_min_utxo=$(${cli} transaction calculate-min-required-utxo \
+    --babbage-era \
+    --protocol-params-file tmp/protocol.json \
+    --tx-out-reference-script-file ${design_mint_script_path} \
+    --tx-out="${reference_address} + 5000000" | tr -dc '0-9')
+echo "Printing Pool Min Fee" ${design_mint_min_utxo}
+
 echo
-nft_lock_value=$lock_min_utxo
-nft_mint_value=$mint_min_utxo
-nft_pool_value=$pool_min_utxo
-nft_lock_script_reference_utxo="${reference_address} + ${nft_lock_value}"
-nft_mint_script_reference_utxo="${reference_address} + ${nft_mint_value}"
+nft_market_value=${market_min_utxo}
+nft_invoice_value=${invoice_min_utxo}
+nft_pool_value=${pool_min_utxo}
+nft_design_lock_value=${design_lock_min_utxo}
+nft_design_mint_value=${design_mint_min_utxo}
+#
+nft_lock_script_reference_utxo="${reference_address} + ${nft_market_value}"
+nft_mint_script_reference_utxo="${reference_address} + ${nft_invoice_value}"
 nft_pool_script_reference_utxo="${reference_address} + ${nft_pool_value}"
+nft_design_lock_script_reference_utxo="${reference_address} + ${nft_design_lock_value}"
+nft_design_mint_script_reference_utxo="${reference_address} + ${nft_design_mint_value}"
 
 echo -e "\nCreating Marketplace Reference:\n" ${nft_lock_script_reference_utxo}
 echo -e "\nCreating Invoice Reference:\n" ${nft_mint_script_reference_utxo}
 echo -e "\nCreating Printing Pool Reference:\n" ${nft_pool_script_reference_utxo}
+echo -e "\nCreating Design Lock Reference:\n" ${nft_design_lock_script_reference_utxo}
+echo -e "\nCreating Design Mint Reference:\n" ${nft_design_mint_script_reference_utxo}
 #
 # exit
 #
@@ -83,7 +109,7 @@ FEE=$(${cli} transaction calculate-min-fee --tx-body-file tmp/tx.draft ${network
 echo FEE: $FEE
 fee=$(echo $FEE | rev | cut -c 9- | rev)
 
-firstReturn=$((${starting_reference_lovelace} - ${nft_mint_value} - ${nft_lock_value} - ${fee}))
+firstReturn=$((${starting_reference_lovelace} - ${nft_invoice_value} - ${nft_market_value} - ${fee}))
 
 ${cli} transaction build-raw \
     --babbage-era \
@@ -141,6 +167,46 @@ ${cli} transaction sign \
     --out-file tmp/tx-2.signed \
     ${network}
 
+nextUTxO=$(${cli} transaction txid --tx-body-file tmp/tx.draft)
+echo "First in the tx chain" $nextUTxO
+
+${cli} transaction build-raw \
+    --babbage-era \
+    --protocol-params-file tmp/protocol.json \
+    --out-file tmp/tx.draft \
+    --tx-in="${nextUTxO}#0" \
+    --tx-out="${reference_address} + ${secondReturn}" \
+    --tx-out="${nft_design_lock_script_reference_utxo}" \
+    --tx-out-reference-script-file ${design_lock_script_path} \
+    --tx-out="${nft_design_mint_script_reference_utxo}" \
+    --tx-out-reference-script-file ${design_mint_script_path} \
+    --fee 900000
+
+FEE=$(${cli} transaction calculate-min-fee --tx-body-file tmp/tx.draft ${network} --protocol-params-file tmp/protocol.json --tx-in-count 0 --tx-out-count 0 --witness-count 1)
+echo FEE: $FEE
+fee=$(echo $FEE | rev | cut -c 9- | rev)
+
+thirdReturn=$((${secondReturn} - ${nft_design_lock_value} - ${nft_design_mint_value} - ${fee}))
+
+${cli} transaction build-raw \
+    --babbage-era \
+    --protocol-params-file tmp/protocol.json \
+    --out-file tmp/tx.draft \
+    --tx-in="${nextUTxO}#0" \
+    --tx-out="${reference_address} + ${thirdReturn}" \
+    --tx-out="${nft_design_lock_script_reference_utxo}" \
+    --tx-out-reference-script-file ${design_lock_script_path} \
+    --tx-out="${nft_design_mint_script_reference_utxo}" \
+    --tx-out-reference-script-file ${design_mint_script_path} \
+    --fee ${fee}
+
+echo -e "\033[0;36m Signing \033[0m"
+${cli} transaction sign \
+    --signing-key-file wallets/reference/payment.skey \
+    --tx-body-file tmp/tx.draft \
+    --out-file tmp/tx-3.signed \
+    ${network}
+
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
     ${network} \
@@ -151,5 +217,11 @@ ${cli} transaction submit \
     ${network} \
     --tx-file tmp/tx-2.signed
 
+echo -e "\033[0;36m Submitting \033[0m"
+${cli} transaction submit \
+    ${network} \
+    --tx-file tmp/tx-3.signed
+
 cp tmp/tx-1.signed tmp/tx-marketplace-reference.signed
 cp tmp/tx-2.signed tmp/tx-printing-reference.signed
+cp tmp/tx-3.signed tmp/tx-design-reference.signed

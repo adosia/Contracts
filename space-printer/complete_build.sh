@@ -67,6 +67,9 @@ cd ..
 variable=$(cat ./design-minting-contract/policy.id); jq --arg variable "$variable" '.invoicePid=$variable' ./start_info.json > ./start_info-new.json
 mv ./start_info-new.json ./start_info.json
 
+variable=$(cat ./design-minting-contract/policy.id); jq --arg variable "$variable" '.fields[0].bytes=$variable' ./scripts/design-minter-scripts/data/datum/token_design_datum.json > ./scripts/design-minter-scripts/data/datum/token_design_datum-new.json
+mv ./scripts/design-minter-scripts/data/datum/token_design_datum-new.json ./scripts/design-minter-scripts/data/datum/token_design_datum.json
+
 # end of design lock and mint build
 #
 # exit

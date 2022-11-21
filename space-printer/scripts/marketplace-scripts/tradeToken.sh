@@ -7,18 +7,18 @@ cli=$(cat path_to_cli.sh)
 testnet_magic=2
 
 # Addresses
-sender_wallet_path="wallets/printer/"
+sender_wallet_path="wallets/designer/"
 sender_address=$(cat ${sender_wallet_path}payment.addr)
 sender_pkh=$(${cli} address key-hash --payment-verification-key-file ${sender_wallet_path}payment.vkey)
 
-receiver_wallet_path="wallets/printer/"
+receiver_wallet_path="wallets/reference/"
 receiver_address=$(cat ${receiver_wallet_path}payment.addr)
 receiver_pkh=$(${cli} address key-hash --payment-verification-key-file ${receiver_wallet_path}payment.vkey)
 
 # receiver_address="addr_test1qrupt9d9ug2ufnrrajp2q7gwvmrtzzgr80p5ug7q8nt4d66hu0s5mnhxh2853wtsgn9gdz6wuqtaqnkv0yk78p474d6qudapqh"
 
 # Define Asset to be printed here
-asset="1 f61e1c1d38fc4e5b0734329a4b7b820b76bb8e0729458c153c4248ea.5468697349734f6e6553746172746572546f6b656e466f7254657374696e6731"
+asset="1 15c0aaecc4c09d24d6c840185b6ea2ad3c07c48459b0342aabd79518.7468697369736164657356644c5841766b50495a794e5f30"
 CHANGE_ASSET=""
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
@@ -26,10 +26,10 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --tx-out="${receiver_address}+ 5000000 + ${asset}" | tr -dc '0-9')
 
 token_to_be_traded="${receiver_address} + ${min_utxo} + ${asset}"
-change_return_out="${receiver_address} + 2500000"
+change_return_out="${receiver_address} + 250000000"
 
 echo -e "\nTrading A Token:\n" ${token_to_be_traded}
-# echo -e "\nTrading A Token:\n" ${change_return_out}
+echo -e "\nTrading A Token:\n" ${change_return_out}
 #
 # exit
 #
@@ -55,11 +55,12 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${sender_address} \
     --tx-in ${HEXTXIN} \
-    --tx-out="${token_to_be_traded}" \
+    --tx-out="${change_return_out}" \
     --required-signer-hash ${sender_pkh} \
     --required-signer-hash ${receiver_pkh} \
     --testnet-magic ${testnet_magic})
 
+    # --tx-out="${token_to_be_traded}" \
 IFS=':' read -ra VALUE <<< "${FEE}"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
 FEE=${FEE[1]}

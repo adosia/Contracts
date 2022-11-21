@@ -54,7 +54,6 @@ startTkn = PlutusV2.TokenName { PlutusV2.unTokenName = createBuiltinByteString [
 
 lockValue :: PlutusV2.Value
 lockValue = Value.singleton startPid startTkn (1 :: Integer)
-
 -------------------------------------------------------------------------------
 -- | Create the datum parameters data object.
 -------------------------------------------------------------------------------
