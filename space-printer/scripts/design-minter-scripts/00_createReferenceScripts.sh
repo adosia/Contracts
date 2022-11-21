@@ -222,6 +222,6 @@ ${cli} transaction submit \
     ${network} \
     --tx-file tmp/tx-3.signed
 
-cp tmp/tx-1.signed tmp/tx-marketplace-reference.signed
-cp tmp/tx-2.signed tmp/tx-printing-reference.signed
-cp tmp/tx-3.signed tmp/tx-design-reference.signed
+cp tmp/tx-1.signed ../reference-txs/tx-marketplace-reference.signed
+cp tmp/tx-2.signed ../reference-txs/tx-printing-reference.signed
+cp tmp/tx-3.signed ../reference-txs/tx-design-reference.signed

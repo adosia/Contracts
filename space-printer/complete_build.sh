@@ -150,5 +150,5 @@ echo -e "\033[1;33m Validator Address: $(cat validator.addr) \033[0m"
 echo -e "\033[1;33m Validator Hash: $(cat validator.hash) \033[0m" 
 echo -e "\033[1;33m Validator Bytes: $(cat validator.bytes) \033[0m" 
 
-
+echo
 echo "DONE"

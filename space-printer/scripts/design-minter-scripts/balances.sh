@@ -5,7 +5,7 @@ export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 testnet_magic=2
 
-script_path="../../marketplace-contract/marketplace-contract.plutus"
+script_path="../../design-locking-contract/locking-contract.plutus"
 
 script=$(${cli} address build --payment-script-file ${script_path} --testnet-magic ${testnet_magic})
 

@@ -52,8 +52,6 @@ data MarketDataType = MarketDataType
   -- ^ The current design increment number.
   , mPoPolicy    :: PlutusV2.CurrencySymbol
   -- ^ The purchase order Policy ID.
-  , mPrefixName  :: PlutusV2.BuiltinByteString
-  -- ^ The purchase order Token Name Prefix.
   , mPoPrice     :: Integer
   -- ^ The purchase order price in lovelace.
   }
@@ -65,7 +63,6 @@ checkDatumIncrease a b =  ( mDesignerPKH a == mDesignerPKH b ) &&
                           ( mStartName   a == mStartName   b ) &&
                           ( mNumber  a + 1 == mNumber      b ) &&
                           ( mPoPolicy    a == mPoPolicy    b ) &&
-                          ( mPrefixName  a == mPrefixName  b ) &&
                           ( mPoPrice     a == mPoPrice     b )
 
 updateSalePrice :: MarketDataType -> MarketDataType -> Bool
@@ -74,7 +71,6 @@ updateSalePrice a b = ( mDesignerPKH a == mDesignerPKH b ) &&
                       ( mStartName   a == mStartName   b ) &&
                       ( mNumber      a == mNumber      b ) &&
                       ( mPoPolicy    a == mPoPolicy    b ) &&
-                      ( mPrefixName  a == mPrefixName  b ) &&
                       ( mPoPrice     a /= mPoPrice     b )
 -------------------------------------------------------------------------------
 -- | Update Data Structure
