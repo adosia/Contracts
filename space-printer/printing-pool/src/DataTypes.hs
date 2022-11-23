@@ -30,6 +30,7 @@ module DataTypes
   , checkPrintingPoolUpdate
   , OfferInformationType (..)
   , checkPrintingOffer
+  , adjustPrintingTime
   , ShippingInfoType (..)
   , checkShippingStatus
   , MakeOfferType (..)
@@ -92,6 +93,15 @@ checkPrintingOffer a b =  ( ppCustomerPKH a == oiCustomerPKH b ) &&
                           ( ppRegionCode  a == oiRegionCode  b ) &&
                           ( ppPOName      a == oiPOName      b )
 
+adjustPrintingTime :: OfferInformationType -> OfferInformationType -> Bool
+adjustPrintingTime a b =  ( oiCustomerPKH a == oiCustomerPKH b ) &&
+                          ( oiCustomerSC  a == oiCustomerSC  b ) &&
+                          ( oiRegionCode  a == oiRegionCode  b ) &&
+                          ( oiPOName      a == oiPOName      b ) &&
+                          ( oiPrinterPKH  a == oiPrinterPKH  b ) &&
+                          ( oiPrinterSC   a == oiPrinterSC   b ) &&
+                          ( oiOfferPrice  a == oiOfferPrice  b ) &&
+                          ( oiPrintTime   a <  oiPrintTime   b )
 -------------------------------------------------------------------------------
 -- | Shipping Data Object
 -------------------------------------------------------------------------------

@@ -171,6 +171,19 @@ mkValidator datum redeemer context =
               ;         traceIfFalse "OfferInformation:Remove" $ all (==(True :: Bool)) [a,b,c,d,e,f]
               }
             _ -> False
+        Update ->
+          case getContinuingDatum contTxOutputs validatingValue of
+            (OfferInformation oit') -> do
+              { let customerPkh = oiCustomerPKH oit
+              ; let printerPkh  = oiPrinterPKH oit
+              ; let a = traceIfFalse "Incorrect Signer"        $ ContextsV2.txSignedBy info customerPkh             -- customer must sign it
+              ; let b = traceIfFalse "Incorrect Signer"        $ ContextsV2.txSignedBy info printerPkh              -- printer must sign it
+              ; let c = traceIfFalse "Single Script UTxO"      $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1 -- single script input
+              ; let d = traceIfFalse "Incorrect State"         $ adjustPrintingTime oit oit'                        -- The print time is being extended
+              ; let e = traceIfFalse "Wrong Purchase Order"    $ Value.valueOf validatingValue purchaseOrderPid (oiPOName oit) == (1 :: Integer)
+              ;         traceIfFalse "OfferInformation:Update" $ all (==(True :: Bool)) [a,b,c,d,e]
+              }
+            _ -> False
         Ship ->
           case getContinuingDatum contTxOutputs validatingValue of
             (CurrentlyShipping sit) -> do
