@@ -103,7 +103,7 @@ mkValidator datum redeemer context =
           ; let c = traceIfFalse "Single Script UTxO"  $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0              -- single script input
           ;         traceIfFalse "PrintingPool:Remove" $ all (==(True :: Bool)) [a,b,c]
           }
-        -- | customer updates their po
+        -- | customer updates their purchase order
         Update ->
           case getContinuingDatum contTxOutputs validatingValue of
             (PrintingPool ppt') -> do
@@ -171,6 +171,7 @@ mkValidator datum redeemer context =
               ;         traceIfFalse "OfferInformation:Remove" $ all (==(True :: Bool)) [a,b,c,d,e,f]
               }
             _ -> False
+        -- | Printer and customer agree to update the offer, time only no money.
         Update ->
           case getContinuingDatum contTxOutputs validatingValue of
             (OfferInformation oit') -> do
