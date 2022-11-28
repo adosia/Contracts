@@ -185,6 +185,7 @@ mkValidator datum redeemer context =
               ;         traceIfFalse "OfferInformation:Update" $ all (==(True :: Bool)) [a,b,c,d,e]
               }
             _ -> False
+        -- | Begins the shipping process for a completed printing.
         Ship ->
           case getContinuingDatum contTxOutputs validatingValue of
             (CurrentlyShipping sit) -> do
