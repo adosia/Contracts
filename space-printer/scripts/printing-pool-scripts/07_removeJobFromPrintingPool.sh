@@ -6,9 +6,9 @@ export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 testnet_magic=$(cat ../testnet.magic)
 
-script_path="../../printing-pool/printing-pool.plutus"
 
 # Addresses
+script_path="../../printing-pool/printing-pool.plutus"
 script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic ${testnet_magic})
 echo -e "Script: " $script_address
 
@@ -20,8 +20,6 @@ collat_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/col
 customer_address=$(cat wallets/customer/payment.addr)
 customer_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallets/customer/payment.vkey)
 echo -e "Customer:" ${customer_address}
-
-# Define Asset to be printed here
 
 # design info
 poPid=$(cat ../marketplace-scripts/data/datum/token_sale_datum.json | jq -r .fields[4].bytes)
@@ -100,6 +98,7 @@ FEE=$(${cli} transaction build \
     --spending-reference-tx-in-redeemer-file ./data/redeemer/remove_redeemer.json \
     --tx-out="${customer_job_to_be_removed}" \
     --required-signer-hash ${customer_pkh} \
+    --required-signer-hash ${collat_pkh} \
     --testnet-magic ${testnet_magic})
 
 IFS=':' read -ra VALUE <<< "$FEE"

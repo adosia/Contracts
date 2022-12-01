@@ -5,9 +5,9 @@ set -e
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 testnet_magic=$(cat ../testnet.magic)
-script_path="../../printing-pool/printing-pool.plutus"
 
 # Addresses
+script_path="../../printing-pool/printing-pool.plutus"
 script_address=$(${cli} address build --payment-script-file ${script_path} --testnet-magic ${testnet_magic})
 echo -e "Script: " $script_address
 

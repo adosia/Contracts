@@ -86,7 +86,7 @@ fi
 customer_job_to_be_updated="${script_address} + ${min_utxo} + ${asset}"
 echo -e "\nUpdating Printing Job:\n" ${customer_job_to_be_updated}
 #
-# exit
+exit
 #
 echo -e "\033[0;36m Getting Customer UTxO Information  \033[0m"
 ${cli} query utxo \

@@ -66,7 +66,7 @@ PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ('PrintingPool,      0)
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
 data CustomRedeemerType = Remove               |
-                          Update               |
+                          Update MakeOfferType |
                           Offer  MakeOfferType |
                           Accept               |
                           Cancel               |
@@ -104,8 +104,8 @@ mkValidator datum redeemer context =
           ;         traceIfFalse "PrintingPool:Remove" $ all (==(True :: Bool)) [a,b,c]
           }
         -- | customer updates their purchase order
-        Update ->
-          case getContinuingDatum contTxOutputs validatingValue of
+        (Update mot) -> let additionalValue = validatingValue + (adaValue $ makeOfferPrice mot)
+          in case getContinuingDatum contTxOutputs additionalValue of
             (PrintingPool ppt') -> do
               { let a = traceIfFalse "Incorrect Signer"     $ ContextsV2.txSignedBy info (ppCustomerPKH ppt)                                  -- customer must sign it
               ; let b = traceIfFalse "Single Script UTxO"   $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1                              -- single script input
@@ -115,8 +115,7 @@ mkValidator datum redeemer context =
               }
             _ -> False
         -- | multisig agreement between customer and printer
-        (Offer mot) ->
-          let additionalValue = validatingValue + (adaValue $ makeOfferPrice mot)
+        (Offer mot) -> let additionalValue = validatingValue + (adaValue $ makeOfferPrice mot)
           in case getContinuingDatum contTxOutputs additionalValue of
             (OfferInformation oit) -> do
               { let a = traceIfFalse "Bad Customer Signer"  $ ContextsV2.txSignedBy info (ppCustomerPKH ppt)                                  -- The customer must sign it
@@ -172,8 +171,8 @@ mkValidator datum redeemer context =
               }
             _ -> False
         -- | Printer and customer agree to update the offer, time only no money.
-        Update ->
-          case getContinuingDatum contTxOutputs validatingValue of
+        (Update mot) -> let additionalValue = validatingValue + (adaValue $ makeOfferPrice mot)
+          in case getContinuingDatum contTxOutputs additionalValue of
             (OfferInformation oit') -> do
               { let customerPkh = oiCustomerPKH oit
               ; let printerPkh  = oiPrinterPKH oit

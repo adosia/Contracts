@@ -17,7 +17,7 @@ echo -e "Script:" $script_address
 # designer
 designer_address=$(cat wallets/designer/payment.addr)
 designer_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/designer/payment.vkey)
-echo -e "\nDesigner:" ${designer_address}
+echo -e "Designer:" ${designer_address}
 
 # collat
 collat_address=$(cat wallets/collat/payment.addr)
@@ -41,7 +41,7 @@ if [[ ${1} -lt 1000000 ]] ; then
     exit
 fi
 
-echo -e "New Design Price Is ${1} Lovelace\n" 
+echo -e "\nNew Design Price Is ${1} Lovelace\n" 
 
 # # update the register redeemer to put the stake key on chain
 variable=${1}; jq --argjson variable "$variable" '.fields[5].int=$variable' ./data/datum/updated_token_sale_datum.json > ./data/datum/updated_token_sale_datum-new.json
