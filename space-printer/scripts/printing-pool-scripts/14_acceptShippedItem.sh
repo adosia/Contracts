@@ -34,51 +34,14 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --tx-out-inline-datum-file ./data/datum/printing_pool_datum.json \
     --tx-out="$script_address + 5000000 + $asset" | tr -dc '0-9')
 
-# update the printing pool datum
-variable=${poTkn}; jq --arg variable "$variable" '.fields[0].fields[3].bytes=$variable' data/datum/offer_information_datum.json > data/datum/offer_information_datum-new.json
-mv data/datum/offer_information_datum-new.json data/datum/offer_information_datum.json
-
-if [[ $# -eq 0 ]] ; then
-    echo -e "\n \033[0;31m Please Supply A New Offer Price In Lovelace \033[0m \n";
-    exit
-fi
-
-if [[ ${1} -lt 1000000 ]] ; then
-    echo -e "\n \033[0;31m Offer Price Must Be More Than 1000000 Lovelace \033[0m \n";
-    exit
-fi
-
-echo -e "\nNew Offer Price Is ${1} Lovelace\n" 
-
-offer_price=${1}
-
-variable=${offer_price}; jq --argjson variable "$variable" '.fields[0].fields[6].int=$variable' data/datum/offer_information_datum.json > data/datum/offer_information_datum-new.json
-mv data/datum/offer_information_datum-new.json data/datum/offer_information_datum.json
-
-variable=${offer_price}; jq --argjson variable "$variable" '.fields[0].fields[0].int=$variable' data/redeemer/offer_redeemer.json > data/redeemer/offer_redeemer-new.json
-mv data/redeemer/offer_redeemer-new.json data/redeemer/offer_redeemer.json
-
-offer_and_min=$((${min_utxo} + ${offer_price}))
-job_to_be_selected="${script_address} + ${offer_and_min} + ${asset}"
-echo -e "\nSelecting A Printing Job:\n" ${job_to_be_selected}
+offer_price=$(cat data/datum/offer_information_datum.json  | jq .fields[0].fields[6].int)
+customer_out="${customer_address} + ${min_utxo} + ${asset}"
+echo -e "\nCustomer Return:\n" ${customer_out}
+printer_out="${printer_address} + ${offer_price}"
+echo -e "\nPrinter Payment:\n" ${printer_out}
 #
 # exit
 #
-echo -e "\033[0;36m Getting Printer UTxO Information  \033[0m"
-${cli} query utxo \
-    --testnet-magic ${testnet_magic} \
-    --address ${printer_address} \
-    --out-file tmp/printer_utxo.json
-
-TXNS=$(jq length tmp/printer_utxo.json)
-if [ "$TXNS" -eq "0" ]; then
-   echo -e "\n \033[0;31m NO UTxOs Found At ${printer_address} \033[0m \n";
-   exit;
-fi
-alltxin=""
-TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/printer_utxo.json)
-printer_tx_in=${TXIN::-8}
-
 echo -e "\033[0;36m Getting Customer UTxO Information  \033[0m"
 ${cli} query utxo \
     --testnet-magic ${testnet_magic} \
@@ -92,13 +55,7 @@ if [ "$TXNS" -eq "0" ]; then
 fi
 alltxin=""
 TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/customer_utxo.json)
-customer_tx_in=${TXIN::-8}
-
-customer_lovelace=$(jq '[.. | objects | .lovelace] | add' tmp/customer_utxo.json)
-customer_change=$((${customer_lovelace} - ${offer_price}))
-customer_out="${customer_address} + ${customer_change}"
-echo -e "\nCustomer Change Output:\n" ${customer_out}
-
+HEXTXIN=${TXIN::-8}
 
 echo -e "\033[0;36m Getting Script UTxO Information  \033[0m"
 ${cli} query utxo \
@@ -112,8 +69,8 @@ if [ "$TXNS" -eq "0" ]; then
    exit;
 fi
 alltxin=""
-TXIN=$(jq -r --arg alltxin "" --arg policy_id "$poPid" --arg name "$poTkn" 'to_entries[] | select(.value.value[$policy_id][$name] == 1) | .key | . + $alltxin + " --tx-in"' tmp/script_utxo.json)
-script_tx_in=${TXIN::-8}
+TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/script_utxo.json)
+SCRIPT_TXIN=${TXIN::-8}
 
 # collat info
 echo -e "\033[0;36m Gathering Collateral UTxO Information  \033[0m"
@@ -136,20 +93,17 @@ FEE=$(${cli} transaction build \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --out-file tmp/tx.draft \
-    --change-address ${printer_address} \
-    --tx-in ${printer_tx_in} \
-    --tx-in ${customer_tx_in} \
+    --change-address ${customer_address} \
+    --tx-in ${HEXTXIN} \
     --tx-in-collateral ${collat_utxo} \
-    --tx-in ${script_tx_in}  \
+    --tx-in ${SCRIPT_TXIN} \
     --spending-tx-in-reference="${script_ref_utxo}#1" \
     --spending-plutus-script-v2 \
     --spending-reference-tx-in-inline-datum-present \
-    --spending-reference-tx-in-redeemer-file ./data/redeemer/offer_redeemer.json \
+    --spending-reference-tx-in-redeemer-file ./data/redeemer/accept_redeemer.json \
     --tx-out="${customer_out}" \
-    --tx-out="${job_to_be_selected}" \
-    --tx-out-inline-datum-file data/datum/offer_information_datum.json \
+    --tx-out="${printer_out}" \
     --required-signer-hash ${customer_pkh} \
-    --required-signer-hash ${printer_pkh} \
     --required-signer-hash ${collat_pkh} \
     --testnet-magic ${testnet_magic})
 
@@ -162,7 +116,6 @@ echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
-    --signing-key-file wallets/printer/payment.skey \
     --signing-key-file wallets/customer/payment.skey \
     --signing-key-file wallets/collat/payment.skey \
     --tx-body-file tmp/tx.draft \

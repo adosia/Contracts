@@ -11,7 +11,7 @@ sender_wallet_path="wallets/designer/"
 sender_address=$(cat ${sender_wallet_path}payment.addr)
 sender_pkh=$(${cli} address key-hash --payment-verification-key-file ${sender_wallet_path}payment.vkey)
 
-receiver_wallet_path="wallets/customer/"
+receiver_wallet_path="wallets/printer/"
 receiver_address=$(cat ${receiver_wallet_path}payment.addr)
 receiver_pkh=$(${cli} address key-hash --payment-verification-key-file ${receiver_wallet_path}payment.vkey)
 
