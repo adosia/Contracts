@@ -113,7 +113,6 @@ alltxin=""
 TXIN=$(jq -r --arg alltxin "" --arg policy_id "$starterPid" --arg name "$starterTkn" 'to_entries[] | select(.value.value[$policy_id][$name] == 1) | .key | . + $alltxin + " --tx-in"' tmp/script_utxo.json)
 script_tx_in=${TXIN::-8}
 
-
 # collat info
 echo -e "\033[0;36m Gathering Collateral UTxO Information  \033[0m"
 ${cli} query utxo \
@@ -129,7 +128,6 @@ fi
 collat_utxo=$(jq -r 'keys[0]' tmp/collat_utxo.json)
 
 script_ref_utxo=$(${cli} transaction txid --tx-file ../reference-txs/tx-marketplace-reference.signed)
-
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \

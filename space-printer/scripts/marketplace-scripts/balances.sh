@@ -5,9 +5,11 @@ export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 testnet_magic=$(cat ../testnet.magic)
 
-script_path="../../marketplace-contract/marketplace-contract.plutus"
+market_script_path="../../marketplace-contract/marketplace-contract.plutus"
+design_script_path="../../design-locking-contract/locking-contract.plutus"
 
-script=$(${cli} address build --payment-script-file ${script_path} --testnet-magic ${testnet_magic})
+design=$(${cli} address build --payment-script-file ${design_script_path} --testnet-magic ${testnet_magic})
+market=$(${cli} address build --payment-script-file ${market_script_path} --testnet-magic ${testnet_magic})
 
 designer=$(cat wallets/designer/payment.addr)
 customer=$(cat wallets/customer/payment.addr)
@@ -20,8 +22,12 @@ ${cli} query protocol-parameters --testnet-magic ${testnet_magic} --out-file tmp
 ${cli} query tip --testnet-magic ${testnet_magic} | jq
 
 echo
-echo "Marketplace Script Address:" ${script}
-${cli} query utxo --address ${script} --testnet-magic ${testnet_magic}
+echo "Design Script Address:" ${design}
+${cli} query utxo --address ${design} --testnet-magic ${testnet_magic}
+
+echo
+echo "Marketplace Script Address:" ${market}
+${cli} query utxo --address ${market} --testnet-magic ${testnet_magic}
 
 echo
 echo "Designer Address:" ${designer}
