@@ -53,12 +53,12 @@ import           UsefulFuncs
 -------------------------------------------------------------------------------
 -- starter policy id
 startPid :: PlutusV2.CurrencySymbol
-startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [1, 234, 49, 231, 252, 217, 99, 66, 193, 151, 18, 13, 50, 184, 240, 108, 165, 13, 189, 244, 231, 221, 86, 229, 236, 139, 118, 213] }
+startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [124, 246, 44, 158, 49, 101, 251, 95, 241, 169, 205, 203, 49, 104, 42, 121, 160, 133, 106, 86, 230, 62, 172, 36, 29, 251, 42, 119] }
 -------------------------------------------------------------------------------
 -- | Marketplace Validator Hash
 -------------------------------------------------------------------------------
 marketValidatorHash :: PlutusV2.ValidatorHash
-marketValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString [46, 48, 159, 132, 144, 236, 114, 158, 217, 8, 92, 50, 9, 215, 120, 77, 165, 177, 84, 53, 250, 247, 247, 172, 205, 178, 129, 216]
+marketValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString [27, 182, 226, 141, 25, 164, 179, 191, 67, 240, 120, 59, 99, 151, 225, 192, 200, 190, 21, 130, 127, 200, 29, 176, 180, 89, 140, 11]
 -------------------------------------------------------------------------------
 data MarketDataType = MarketDataType
   { mDesignerPKH :: PlutusV2.PubKeyHash

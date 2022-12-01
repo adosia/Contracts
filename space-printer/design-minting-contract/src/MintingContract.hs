@@ -51,13 +51,13 @@ startPid :: PlutusV2.CurrencySymbol
 startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [78, 87, 151, 81, 131, 235, 183, 81, 135, 143, 174, 37, 193, 201, 151, 61, 6, 190, 13, 153, 184, 169, 112, 34, 79, 167, 250, 54] }
 
 startTkn :: PlutusV2.TokenName
-startTkn = PlutusV2.TokenName { PlutusV2.unTokenName = createBuiltinByteString [115, 116, 97, 114, 116, 101, 114, 84, 111, 107, 101, 110] }
+startTkn = PlutusV2.TokenName { PlutusV2.unTokenName = createBuiltinByteString [65, 100, 111, 115, 105, 97, 95, 68, 101, 115, 105, 103, 110, 115, 95, 83, 116, 97, 114, 116, 101, 114, 95, 84, 111, 107, 101, 110] }
 
 tokenValue :: PlutusV2.Value
 tokenValue = Value.singleton startPid startTkn (1 :: Integer)
 
 designValidatorHash :: PlutusV2.ValidatorHash
-designValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString [206, 26, 208, 133, 128, 140, 190, 142, 94, 100, 181, 255, 111, 96, 9, 7, 196, 195, 251, 109, 77, 5, 97, 125, 74, 152, 34, 76]
+designValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString [77, 191, 153, 199, 68, 127, 230, 39, 151, 107, 157, 213, 243, 100, 207, 96, 204, 25, 254, 151, 97, 165, 30, 87, 145, 148, 24, 134]
 -------------------------------------------------------------------------------
 -- | Create the redeemer data object.
 -------------------------------------------------------------------------------

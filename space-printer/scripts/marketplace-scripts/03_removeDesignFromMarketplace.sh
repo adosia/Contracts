@@ -4,7 +4,7 @@ set -e
 # SET UP VARS HERE
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
-testnet_magic=2
+testnet_magic=$(cat ../testnet.magic)
 script_path="../../marketplace-contract/marketplace-contract.plutus"
 
 # get current params

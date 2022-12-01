@@ -50,7 +50,7 @@ startPid :: PlutusV2.CurrencySymbol
 startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [78, 87, 151, 81, 131, 235, 183, 81, 135, 143, 174, 37, 193, 201, 151, 61, 6, 190, 13, 153, 184, 169, 112, 34, 79, 167, 250, 54] }
 
 startTkn :: PlutusV2.TokenName
-startTkn = PlutusV2.TokenName { PlutusV2.unTokenName = createBuiltinByteString [115, 116, 97, 114, 116, 101, 114, 84, 111, 107, 101, 110] }
+startTkn = PlutusV2.TokenName { PlutusV2.unTokenName = createBuiltinByteString [65, 100, 111, 115, 105, 97, 95, 68, 101, 115, 105, 103, 110, 115, 95, 83, 116, 97, 114, 116, 101, 114, 95, 84, 111, 107, 101, 110] }
 
 lockValue :: PlutusV2.Value
 lockValue = Value.singleton startPid startTkn (1 :: Integer)

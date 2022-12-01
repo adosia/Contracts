@@ -2,7 +2,7 @@
 set -e
 
 # constant variables
-testnet_magic=2
+testnet_magic=$(cat scripts/testnet.magic)
 
 echo -e "\033[1;35m \nPlacing Starter NFT Into Design Contracts. \033[0m"
 
@@ -74,7 +74,6 @@ mv ./scripts/design-minter-scripts/data/datum/token_design_datum-new.json ./scri
 #
 # exit
 #
-
 echo -e "\033[1;35m \nPlacing Design Policy Id Into The Marketplace And Invoice Contract. \033[0m" 
 
 # get info

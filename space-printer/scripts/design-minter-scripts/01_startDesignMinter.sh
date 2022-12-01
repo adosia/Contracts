@@ -4,7 +4,7 @@ set -e
 # SET UP VARS HERE
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
-testnet_magic=2
+testnet_magic=$(cat ../testnet.magic)
 
 # get params
 ${cli} query protocol-parameters --testnet-magic ${testnet_magic} --out-file tmp/protocol.json
@@ -26,11 +26,21 @@ policy_id=$(cat ../../start_info.json | jq -r .starterPid)
 token_name=$(cat ../../start_info.json | jq -r .starterTkn)
 asset="1 ${policy_id}.${token_name}"
 
+# assume worst case
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file ./tmp/protocol.json \
     --tx-out-inline-datum-file ./data/datum/worst_case_datum.json \
     --tx-out="${script_address} + 5000000 + ${asset}" | tr -dc '0-9')
+
+# reset the design counter to zero
+variable=0; jq --argjson variable "$variable" '.fields[1].int=$variable' ./data/datum/token_design_datum.json > ./data/datum/token_design_datum-new.json
+mv ./data/datum/token_design_datum-new.json ./data/datum/token_design_datum.json
+
+# create the design prefix
+designPrefix=$(echo -n "Adosia_Designs_" | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
+variable=${designPrefix}; jq --arg variable "$variable" '.fields[2].bytes=$variable' ./data/datum/token_design_datum.json > ./data/datum/token_design_datum-new.json
+mv ./data/datum/token_design_datum-new.json ./data/datum/token_design_datum.json
 
 script_address_out="${script_address} + ${min_utxo} + ${asset}"
 echo "Script OUTPUT: "${script_address_out}
