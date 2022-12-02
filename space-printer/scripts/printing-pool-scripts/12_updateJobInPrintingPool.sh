@@ -16,6 +16,11 @@ echo -e "Script: " $script_address
 collat_address=$(cat wallets/collat/payment.addr)
 collat_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/collat/payment.vkey)
 
+# printer info
+printer_address=$(cat wallets/printer/payment.addr)
+printer_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallets/printer/payment.vkey)
+echo -e "\nPrinter: " ${printer_address}
+
 # customer info
 customer_address=$(cat wallets/customer/payment.addr)
 customer_pkh=$(cardano-cli address key-hash --payment-verification-key-file wallets/customer/payment.vkey)
@@ -27,31 +32,30 @@ poTkn=$(cat data/datum/printing_pool_datum.json | jq -r .fields[0].fields[3].byt
 asset="1 ${poPid}.${poTkn}"
 
 
-cp ./data/datum/printing_pool_datum.json ./data/datum/updated_printing_pool_datum.json
+cp ./data/datum/offer_information_datum.json ./data/datum/updated_offer_information_datum.json
 
 if [[ $# -eq 0 ]] ; then
-    echo -e "\n \033[0;31m Please Supply A New Region Code \033[0m \n";
+    echo -e "\n \033[0;31m Please Supply A New Deadline\033[0m \n";
     exit
 fi
 
 if [[ ${1} -le 0 ]] ; then
-    echo -e "\n \033[0;31m Region Code Must Be Greater Than Zero \033[0m \n";
+    echo -e "\n \033[0;31m Deadline Must Be Greater Than Zero \033[0m \n";
     exit
 fi
 
-prevRegionCode=$(cat data/datum/printing_pool_datum.json | jq -r .fields[0].fields[2].list[0].int)
+prevDeadline=$(cat data/datum/offer_information_datum.json | jq -r .fields[0].fields[7].int)
 
-if [[ ${1} -eq ${prevRegionCode} ]] ; then
-    echo -e "\n \033[0;31m New Region Code Must Be Different \033[0m \n";
+if [[ ${1} -lt ${prevDeadline} ]] ; then
+    echo -e "\n \033[0;31m New Deadline Must Greater Than Previous Deadline \033[0m \n";
     exit
 fi
 
-echo -e "\nNew Region Code Is ${1}\n" 
+echo -e "\nNew Deadline Is ${1}\n" 
 
-# # update the register redeemer to put the stake key on chain
-variable=${1}; jq --argjson variable "$variable" '.fields[0].fields[2].list[0].int=$variable' ./data/datum/updated_printing_pool_datum.json > ./data/datum/updated_printing_pool_datum-new.json
-mv ./data/datum/updated_printing_pool_datum-new.json ./data/datum/updated_printing_pool_datum.json
-
+# update the register redeemer to put the stake key on chain
+variable=${1}; jq --argjson variable "$variable" '.fields[0].fields[7].int=$variable' ./data/datum/updated_offer_information_datum.json > ./data/datum/updated_offer_information_datum-new.json
+mv ./data/datum/updated_offer_information_datum-new.json ./data/datum/updated_offer_information_datum.json
 
 current_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
@@ -62,7 +66,7 @@ current_min_utxo=$(${cli} transaction calculate-min-required-utxo \
 updated_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file ./tmp/protocol.json \
-    --tx-out-inline-datum-file ./data/datum/updated_printing_pool_datum.json \
+    --tx-out-inline-datum-file ./data/datum/printing_pool_datum.json \
     --tx-out="${script_address} + 5000000 + ${asset}" | tr -dc '0-9')
 
 difference=$((${updated_min_utxo} - ${current_min_utxo}))
@@ -82,11 +86,13 @@ else
     mv ./data/redeemer/update_redeemer-new.json ./data/redeemer/update_redeemer.json
 fi
 
+offer_price=$(cat data/datum/offer_information_datum.json  | jq .fields[0].fields[6].int)
 
-customer_job_to_be_updated="${script_address} + ${min_utxo} + ${asset}"
+offer_and_min=$((${min_utxo} + ${offer_price}))
+customer_job_to_be_updated="${script_address} + ${offer_and_min} + ${asset}"
 echo -e "\nUpdating Printing Job:\n" ${customer_job_to_be_updated}
 #
-exit
+# exit
 #
 echo -e "\033[0;36m Getting Customer UTxO Information  \033[0m"
 ${cli} query utxo \
@@ -148,8 +154,9 @@ FEE=$(${cli} transaction build \
     --spending-reference-tx-in-inline-datum-present \
     --spending-reference-tx-in-redeemer-file ./data/redeemer/update_redeemer.json \
     --tx-out="${customer_job_to_be_updated}" \
-    --tx-out-inline-datum-file data/datum/updated_printing_pool_datum.json \
+    --tx-out-inline-datum-file data/datum/updated_offer_information_datum.json \
     --required-signer-hash ${customer_pkh} \
+    --required-signer-hash ${printer_pkh} \
     --required-signer-hash ${collat_pkh} \
     --testnet-magic ${testnet_magic})
 
@@ -163,6 +170,7 @@ echo -e "\033[1;32m Fee: \033[0m" $FEE
 echo -e "\033[0;36m Signing \033[0m"
 ${cli} transaction sign \
     --signing-key-file wallets/customer/payment.skey \
+    --signing-key-file wallets/printer/payment.skey \
     --signing-key-file wallets/collat/payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
@@ -175,4 +183,4 @@ ${cli} transaction submit \
     --testnet-magic ${testnet_magic} \
     --tx-file tmp/tx.signed
 
-mv data/datum/updated_printing_pool_datum.json data/datum/printing_pool_datum.json
+mv data/datum/updated_offer_information_datum.json data/datum/offer_information_datum.json

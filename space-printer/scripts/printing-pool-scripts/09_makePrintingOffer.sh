@@ -51,7 +51,13 @@ fi
 echo -e "\nNew Offer Price Is ${1} Lovelace\n" 
 
 offer_price=${1}
+prevRegionCode=$(cat data/datum/printing_pool_datum.json | jq -r .fields[0].fields[2].list[0].int)
 
+# update region code
+variable=${prevRegionCode}; jq --argjson variable "$variable" '.fields[0].fields[2].list[0].int=$variable' ./data/datum/offer_information_datum.json > ./data/datum/offer_information_datum-new.json
+mv ./data/datum/offer_information_datum-new.json ./data/datum/offer_information_datum.json
+
+# update offer price
 variable=${offer_price}; jq --argjson variable "$variable" '.fields[0].fields[6].int=$variable' data/datum/offer_information_datum.json > data/datum/offer_information_datum-new.json
 mv data/datum/offer_information_datum-new.json data/datum/offer_information_datum.json
 

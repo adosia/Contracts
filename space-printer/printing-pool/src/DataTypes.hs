@@ -37,7 +37,7 @@ module DataTypes
   ) where
 import qualified PlutusTx
 import           PlutusTx.Prelude
-import qualified Plutus.V2.Ledger.Api   as PlutusV2
+import qualified Plutus.V2.Ledger.Api as PlutusV2
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
@@ -100,8 +100,7 @@ adjustPrintingTime a b =  ( oiCustomerPKH a == oiCustomerPKH b ) &&
                           ( oiPOName      a == oiPOName      b ) &&
                           ( oiPrinterPKH  a == oiPrinterPKH  b ) &&
                           ( oiPrinterSC   a == oiPrinterSC   b ) &&
-                          ( oiOfferPrice  a == oiOfferPrice  b ) &&
-                          ( oiPrintTime   a <  oiPrintTime   b )
+                          ( oiOfferPrice  a == oiOfferPrice  b )
 -------------------------------------------------------------------------------
 -- | Shipping Data Object
 -------------------------------------------------------------------------------
