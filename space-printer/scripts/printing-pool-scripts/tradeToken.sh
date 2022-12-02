@@ -7,7 +7,7 @@ cli=$(cat path_to_cli.sh)
 testnet_magic=$(cat ../testnet.magic)
 
 # Addresses
-sender_wallet_path="wallets/designer/"
+sender_wallet_path="wallets/customer/"
 sender_address=$(cat ${sender_wallet_path}payment.addr)
 sender_pkh=$(${cli} address key-hash --payment-verification-key-file ${sender_wallet_path}payment.vkey)
 
@@ -15,10 +15,10 @@ receiver_wallet_path="wallets/printer/"
 receiver_address=$(cat ${receiver_wallet_path}payment.addr)
 receiver_pkh=$(${cli} address key-hash --payment-verification-key-file ${receiver_wallet_path}payment.vkey)
 
-# receiver_address="addr_test1qrupt9d9ug2ufnrrajp2q7gwvmrtzzgr80p5ug7q8nt4d66hu0s5mnhxh2853wtsgn9gdz6wuqtaqnkv0yk78p474d6qudapqh"
+receiver_address="addr_test1qrupt9d9ug2ufnrrajp2q7gwvmrtzzgr80p5ug7q8nt4d66hu0s5mnhxh2853wtsgn9gdz6wuqtaqnkv0yk78p474d6qudapqh"
 
 # Define Asset to be printed here
-asset="1 15c0aaecc4c09d24d6c840185b6ea2ad3c07c48459b0342aabd79518.7468697369736164657356644c5841766b50495a794e5f30"
+asset="1 f8633237339ea3f8cd8102790510f64467fcda8302175df339442024.61646f7369615f64657369676e5f325f30"
 CHANGE_ASSET=""
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
@@ -55,7 +55,7 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${sender_address} \
     --tx-in ${HEXTXIN} \
-    --tx-out="${change_return_out}" \
+    --tx-out="${token_to_be_traded}" \
     --required-signer-hash ${sender_pkh} \
     --required-signer-hash ${receiver_pkh} \
     --testnet-magic ${testnet_magic})

@@ -69,7 +69,15 @@ PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'MintPO,   0 )
 {-# INLINABLE mkValidator #-}
 mkValidator :: MarketDataType -> CustomRedeemerType -> PlutusV2.ScriptContext -> Bool
 mkValidator datum redeemer context =
+  {- | Adosia Marketplace
+
+      Handles the minting, burning, and updateing of official Adosia Purchase Order Tokens.
+
+      Designers place their design tokens into the marketplace for customers to pay to
+      mint their purchase order tokens.
+  -}
   case redeemer of
+    -- mint a purchase order for a customer
     (MintPO ud) -> let incomingValue = validatingValue + adaValue (uInc ud) in 
       case getOutboundDatumByValue contTxOutputs incomingValue of
         Nothing            -> traceIfFalse "MintPO:GetOutboundDatumByValue Error" False
@@ -84,6 +92,7 @@ mkValidator datum redeemer context =
           ; let e = traceIfFalse "In/Out Datum"    $ checkDatumIncrease datum incomingDatum
           ;         traceIfFalse "MintPO Endpoint" $ all (==True) [a,b,c,d,e]
           }
+    -- allows a designer to update their purchase order price
     (UpdatePO ud) ->  let incomingValue = validatingValue + adaValue (uInc ud) in 
       case getOutboundDatumByValue contTxOutputs incomingValue of
         Nothing            -> traceIfFalse "UpdatePO:GetOutboundDatumByValue Error" False
@@ -94,6 +103,7 @@ mkValidator datum redeemer context =
           ; let c = traceIfFalse "In/Out Datum"   $ updateSalePrice datum incomingDatum
           ;         traceIfFalse "UpdatePO Error" $ all (==True) [a,b,c]
           }
+    -- allows a designer to remove their design
     Remove -> do
       { let designerPkh  = mDesignerPKH datum
       ; let designerSc   = mDesignerSC  datum

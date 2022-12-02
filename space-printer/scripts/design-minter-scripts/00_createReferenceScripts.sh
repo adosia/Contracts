@@ -217,6 +217,15 @@ ${cli} transaction submit \
     --testnet-magic ${testnet_magic} \
     --tx-file tmp/tx-3.signed
 
+
+echo -e "\nMarketplace"
 cp tmp/tx-1.signed ../reference-txs/tx-marketplace-reference.signed
+${cli} transaction txid --tx-file ../reference-txs/tx-marketplace-reference.signed
+
+echo -e "\nPrinting Pool"
 cp tmp/tx-2.signed ../reference-txs/tx-printing-reference.signed
+${cli} transaction txid --tx-file ../reference-txs/tx-printing-reference.signed
+
+echo -e "\nDesign Minter"
 cp tmp/tx-3.signed ../reference-txs/tx-design-reference.signed
+${cli} transaction txid --tx-file ../reference-txs/tx-design-reference.signed

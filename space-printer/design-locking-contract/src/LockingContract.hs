@@ -92,7 +92,14 @@ PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Mint, 0 )
 {-# INLINABLE mkValidator #-}
 mkValidator :: CustomDatumType -> CustomRedeemerType -> PlutusV2.ScriptContext -> Bool
 mkValidator datum redeemer context =
+  {- | Design Locking
+
+      Handles the minting and burning of official Adosia Designs Tokens.
+
+      A designer mints their design with their specific design metadata.
+  -}
   case redeemer of
+    -- mint a new Adosia design
     Mint -> do
       { let a = traceIfFalse "Single In/Out Error" $ isNInputs txInputs 1 && isNOutputs contOutputs 1 -- 1 script input 1 script output
       ; let b = traceIfFalse "NFT Minting Error"   checkMintedAmount                                  -- mint an nft only
@@ -100,6 +107,7 @@ mkValidator datum redeemer context =
       ; let d = traceIfFalse "Invalid Start Token" $ Value.geq validatingValue lockValue              -- must contain the start token
       ;         traceIfFalse "Locking:Mint Error"  $ all (==True) [a,b,c,d]
       }
+    -- burn an existing Adosia design
     Burn -> do
       { let a = traceIfFalse "Single In/Out Error" $ isNInputs txInputs 1 && isNOutputs contOutputs 1 -- 1 script input 1 script output
       ; let b = traceIfFalse "NFT Burning Error"   checkBurnedAmount                                  -- burn an nft only
