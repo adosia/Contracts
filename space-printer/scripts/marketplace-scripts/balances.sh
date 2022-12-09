@@ -51,3 +51,7 @@ ${cli} query utxo --address ${reference} --testnet-magic ${testnet_magic}
 echo
 echo "Collat Address:" ${collat}
 ${cli} query utxo --address ${collat} --testnet-magic ${testnet_magic}
+
+
+# ${cli} query utxo --tx-in a4800dab7f89a834043460104d543ec669a5c979093e8fe27a93e0e24d25d151#0 --testnet-magic ${testnet_magic} --out-file utxo.output
+# cat utxo.output | jq -r to_entries[].value.inlineDatum

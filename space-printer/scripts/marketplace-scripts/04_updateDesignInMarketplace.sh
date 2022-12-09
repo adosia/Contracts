@@ -76,7 +76,6 @@ else
     mv ./data/redeemer/update_redeemer-new.json ./data/redeemer/update_redeemer.json
 fi
 
-mv ./data/datum/updated_token_sale_datum.json ./data/datum/token_sale_datum.json
 
 design_to_be_updated="${script_address} + ${min_utxo} + ${asset}"
 echo -e "\nCreating A New Token Sale In The Marketplace:\n" ${design_to_be_updated}
@@ -143,7 +142,7 @@ FEE=$(${cli} transaction build \
     --spending-reference-tx-in-inline-datum-present \
     --spending-reference-tx-in-redeemer-file ./data/redeemer/update_redeemer.json \
     --tx-out="${design_to_be_updated}" \
-    --tx-out-inline-datum-file ./data/datum/token_sale_datum.json \
+    --tx-out-inline-datum-file ./data/datum/updated_token_sale_datum.json \
     --required-signer-hash ${designer_pkh} \
     --required-signer-hash ${collat_pkh} \
     --testnet-magic ${testnet_magic})
@@ -169,3 +168,5 @@ echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
     --testnet-magic ${testnet_magic} \
     --tx-file tmp/tx.signed
+
+mv ./data/datum/updated_token_sale_datum.json ./data/datum/token_sale_datum.json

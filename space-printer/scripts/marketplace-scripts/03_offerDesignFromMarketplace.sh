@@ -34,9 +34,9 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --tx-out-inline-datum-file ./data/datum/token_sale_datum.json \
     --tx-out="${script_address} + 5000000 + ${asset}" | tr -dc '0-9')
 
-design_to_be_removed="${designer_address} + ${min_utxo} + ${asset}"
+design_to_be_offered="${script_address} + ${min_utxo} + ${asset}"
 
-echo -e "\nCreating A New Token Sale In The Marketplace:\n" ${design_to_be_removed}
+echo -e "\nMake Offer To Design In The Marketplace:\n" ${design_to_be_offered}
 #
 # exit
 #
@@ -70,6 +70,8 @@ alltxin=""
 TXIN=$(jq -r --arg alltxin "" --arg policy_id "$starterPid" --arg name "$starterTkn" 'to_entries[] | select(.value.value[$policy_id][$name] == 1) | .key | . + $alltxin + " --tx-in"' tmp/script_utxo.json)
 script_tx_in=${TXIN::-8}
 
+echo $script_tx_in
+
 # collat info
 echo -e "\033[0;36m Gathering Collateral UTxO Information  \033[0m"
 ${cli} query utxo \
@@ -98,8 +100,9 @@ FEE=$(${cli} transaction build \
     --spending-tx-in-reference="${script_ref_utxo}#1" \
     --spending-plutus-script-v2 \
     --spending-reference-tx-in-inline-datum-present \
-    --spending-reference-tx-in-redeemer-file ./data/redeemer/remove_redeemer.json \
-    --tx-out="${design_to_be_removed}" \
+    --spending-reference-tx-in-redeemer-file ./data/redeemer/offer_redeemer.json \
+    --tx-out="${design_to_be_offered}" \
+    --tx-out-inline-datum-file ./data/datum/token_sale_datum.json \
     --required-signer-hash ${designer_pkh} \
     --required-signer-hash ${collat_pkh} \
     --testnet-magic ${testnet_magic})

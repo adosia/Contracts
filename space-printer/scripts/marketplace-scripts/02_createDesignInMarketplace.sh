@@ -174,7 +174,7 @@ ${cli} transaction sign \
     --out-file tmp/tx.signed \
     --testnet-magic ${testnet_magic}
 #
-exit
+# exit
 #
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \

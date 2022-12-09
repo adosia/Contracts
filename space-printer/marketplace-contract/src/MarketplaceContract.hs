@@ -106,7 +106,7 @@ mkValidator datum redeemer context =
     -- allows a new designer to make an offer for this design
     (Offer ud ndd) -> let incomingValue = validatingValue + adaValue (uInc ud) in 
       case getOutboundDatumByValue contTxOutputs incomingValue of
-        Nothing            -> traceIfFalse "Offer:GetOutboundDatumByValue Error" False
+        Nothing            -> traceIfFalse "OfferPO:GetOutboundDatumByValue Error" False
         Just incomingDatum -> do
           { let designerPkh    = mDesignerPKH datum
           ; let newDesignerPkh = newDesignerPKH ndd

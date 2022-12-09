@@ -23,8 +23,8 @@ echo
 echo "Design Minter Script Address:" ${script}
 ${cli} query utxo --address ${script} --testnet-magic ${testnet_magic}
 
-$(${cli} query utxo --address ${script} --testnet-magic ${testnet_magic} --out-file design.output) \
-cat design.output | jq -r to_entries[]
+# $(${cli} query utxo --address ${script} --testnet-magic ${testnet_magic} --out-file design.output) \
+# cat design.output | jq -r to_entries[]
 
 echo
 echo "Designer Address:" ${designer}

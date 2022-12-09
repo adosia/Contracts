@@ -101,7 +101,7 @@ checkNewDatum :: MarketDataType -> NewDesignerData -> MarketDataType -> Bool
 checkNewDatum a b c = ( newDesignerPKH b == mDesignerPKH c ) &&
                       ( newDesignerSC  b == mDesignerSC  c ) &&
                       ( mStartName     a == mStartName   c ) &&
-                      ( mNumber    a + 1 == mNumber      c ) &&
+                      ( mNumber        a == mNumber      c ) &&
                       ( mPoPolicy      a == mPoPolicy    c ) &&
                       ( mPoPrice       a == mPoPrice     c ) &&
                       ( mPoFreeFlag    a == mPoFreeFlag  c )

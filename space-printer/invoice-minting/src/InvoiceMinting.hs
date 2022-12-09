@@ -58,7 +58,7 @@ startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinBy
 -- | Marketplace Validator Hash
 -------------------------------------------------------------------------------
 marketValidatorHash :: PlutusV2.ValidatorHash
-marketValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString [139, 108, 200, 186, 210, 249, 72, 41, 166, 159, 212, 213, 6, 80, 177, 80, 244, 240, 71, 5, 253, 35, 219, 129, 35, 178, 68, 141]
+marketValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString [230, 224, 199, 5, 199, 107, 26, 35, 140, 222, 147, 219, 152, 234, 251, 93, 252, 8, 138, 77, 242, 164, 156, 116, 141, 133, 224, 55]
 -------------------------------------------------------------------------------
 data MarketDataType = MarketDataType
   { mDesignerPKH :: PlutusV2.PubKeyHash
