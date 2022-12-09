@@ -58,10 +58,10 @@ startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinBy
 -------------------------------------------------------------------------------
 data CustomRedeemerType = MintPO   IncreaseData |
                           UpdatePO IncreaseData |
-                          Remove
+                          Offer    IncreaseData NewDesignerData
 PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'MintPO,   0 )
                                                 , ( 'UpdatePO, 1 )
-                                                , ( 'Remove,   2 )
+                                                , ( 'Offer,    2 )
                                                 ]
 -------------------------------------------------------------------------------
 -- | mkValidator :: Datum -> Redeemer -> ScriptContext -> Bool
@@ -87,7 +87,7 @@ mkValidator datum redeemer context =
           ; let designerAddr  = createAddress designerPkh designerSc
           ; let a = traceIfFalse "Starter NFT"     $ Value.valueOf validatingValue startPid (mStartName datum) == (1 :: Integer)
           ; let b = traceIfFalse "Single Script"   $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1
-          ; let c = traceIfFalse "Designer Payout" $ isAddrGettingPaidExactly txOutputs designerAddr (adaValue $ mPoPrice datum)
+          ; let c = traceIfFalse "Designer Payout" $ (mPoFreeFlag datum == 1) || isAddrGettingPaidExactly txOutputs designerAddr (adaValue $ mPoPrice datum)
           ; let d = traceIfFalse "Minting Info"    checkMintedAmount
           ; let e = traceIfFalse "In/Out Datum"    $ checkDatumIncrease datum incomingDatum
           ;         traceIfFalse "MintPO Endpoint" $ all (==True) [a,b,c,d,e]
@@ -103,16 +103,19 @@ mkValidator datum redeemer context =
           ; let c = traceIfFalse "In/Out Datum"   $ updateSalePrice datum incomingDatum
           ;         traceIfFalse "UpdatePO Error" $ all (==True) [a,b,c]
           }
-    -- allows a designer to remove their design
-    Remove -> do
-      { let designerPkh  = mDesignerPKH datum
-      ; let designerSc   = mDesignerSC  datum
-      ; let designerAddr = createAddress designerPkh designerSc
-      ; let a = traceIfFalse "Incorrect Signer"   $ ContextsV2.txSignedBy info designerPkh
-      ; let b = traceIfFalse "Single Script UTxO" $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0 
-      ; let c = traceIfFalse "Value Not Returned" $ isAddrGettingPaidExactly txOutputs designerAddr validatingValue
-      ;         traceIfFalse "Remove Endpoint"    $ all (==True) [a,b,c]
-      }
+    -- allows a new designer to make an offer for this design
+    (Offer ud ndd) -> let incomingValue = validatingValue + adaValue (uInc ud) in 
+      case getOutboundDatumByValue contTxOutputs incomingValue of
+        Nothing            -> traceIfFalse "Offer:GetOutboundDatumByValue Error" False
+        Just incomingDatum -> do
+          { let designerPkh    = mDesignerPKH datum
+          ; let newDesignerPkh = newDesignerPKH ndd
+          ; let a = traceIfFalse "Incorrect Signer"   $ ContextsV2.txSignedBy info designerPkh
+          ; let b = traceIfFalse "Incorrect Signer"   $ ContextsV2.txSignedBy info newDesignerPkh
+          ; let c = traceIfFalse "Single Script UTxO" $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1
+          ; let d = traceIfFalse "Incorrect Datum"    $ checkNewDatum datum ndd incomingDatum
+          ;         traceIfFalse "Offer Endpoint"     $ all (==True) [a,b,c,d]
+          }
    where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo context

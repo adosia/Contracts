@@ -49,6 +49,8 @@ designPrefix=$(cat ../design-minter-scripts/data/datum/token_design_datum.json |
 
 # purchase order info
 designToken=${designPrefix}$(echo -n ${designNumber} | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
+# designToken=$(echo -n "Adosia_Designs_11111111_11111111" | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
+
 design_asset="1 ${designPolicy}.${designToken}"
 
 nextDesignNumber=$((${designNumber} + 1))
@@ -135,6 +137,7 @@ FEE=$(${cli} transaction build \
     --babbage-era \
     --protocol-params-file tmp/protocol.json \
     --out-file tmp/tx.draft \
+    --script-valid \
     --change-address ${designer_address} \
     --tx-in-collateral="${collat_utxo}" \
     --tx-in ${HEXTXIN} \
@@ -171,7 +174,7 @@ ${cli} transaction sign \
     --out-file tmp/tx.signed \
     --testnet-magic ${testnet_magic}
 #
-# exit
+exit
 #
 echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \

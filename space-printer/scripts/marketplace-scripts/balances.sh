@@ -29,6 +29,9 @@ echo
 echo "Marketplace Script Address:" ${market}
 ${cli} query utxo --address ${market} --testnet-magic ${testnet_magic}
 
+# $(${cli} query utxo --address ${market} --testnet-magic ${testnet_magic} --out-file design.output) \
+# cat design.output | jq -r to_entries[]
+
 echo
 echo "Designer Address:" ${designer}
 ${cli} query utxo --address ${designer} --testnet-magic ${testnet_magic}

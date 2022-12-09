@@ -28,8 +28,10 @@
 module DataTypes
   ( MarketDataType (..)
   , IncreaseData (..)
+  , NewDesignerData (..)
   , checkDatumIncrease
   , updateSalePrice
+  , checkNewDatum
   ) where
 import qualified PlutusTx
 import           PlutusTx.Prelude
@@ -54,6 +56,8 @@ data MarketDataType = MarketDataType
   -- ^ The purchase order Policy ID.
   , mPoPrice     :: Integer
   -- ^ The purchase order price in lovelace.
+  , mPoFreeFlag  :: Integer
+  -- ^ Allows a designer to indicate its a free mint.
   }
 PlutusTx.unstableMakeIsData ''MarketDataType
 
@@ -63,15 +67,15 @@ checkDatumIncrease a b =  ( mDesignerPKH a == mDesignerPKH b ) &&
                           ( mStartName   a == mStartName   b ) &&
                           ( mNumber  a + 1 == mNumber      b ) &&
                           ( mPoPolicy    a == mPoPolicy    b ) &&
-                          ( mPoPrice     a == mPoPrice     b )
+                          ( mPoPrice     a == mPoPrice     b ) &&
+                          ( mPoFreeFlag  a == mPoFreeFlag  b )
 
 updateSalePrice :: MarketDataType -> MarketDataType -> Bool
 updateSalePrice a b = ( mDesignerPKH a == mDesignerPKH b ) &&
                       ( mDesignerSC  a == mDesignerSC  b ) &&
                       ( mStartName   a == mStartName   b ) &&
                       ( mNumber      a == mNumber      b ) &&
-                      ( mPoPolicy    a == mPoPolicy    b ) &&
-                      ( mPoPrice     a /= mPoPrice     b )
+                      ( mPoPolicy    a == mPoPolicy    b )
 -------------------------------------------------------------------------------
 -- | Update Data Structure
 -------------------------------------------------------------------------------
@@ -80,3 +84,24 @@ data IncreaseData = IncreaseData
   -- ^ The potential lovelace increase required for an update.
   }
 PlutusTx.unstableMakeIsData ''IncreaseData
+
+-------------------------------------------------------------------------------
+-- | New Owner Data Structure
+-------------------------------------------------------------------------------
+data NewDesignerData = NewDesignerData
+  { newDesignerPKH :: PlutusV2.PubKeyHash
+  -- ^ The new Designer's payment public key hash.
+  , newDesignerSC  :: PlutusV2.PubKeyHash
+  -- ^ The new Designer's staking credential.
+  }
+PlutusTx.unstableMakeIsData ''NewDesignerData
+
+-- old datum, redeemer, new datum
+checkNewDatum :: MarketDataType -> NewDesignerData -> MarketDataType -> Bool
+checkNewDatum a b c = ( newDesignerPKH b == mDesignerPKH c ) &&
+                      ( newDesignerSC  b == mDesignerSC  c ) &&
+                      ( mStartName     a == mStartName   c ) &&
+                      ( mNumber    a + 1 == mNumber      c ) &&
+                      ( mPoPolicy      a == mPoPolicy    c ) &&
+                      ( mPoPrice       a == mPoPrice     c ) &&
+                      ( mPoFreeFlag    a == mPoFreeFlag  c )

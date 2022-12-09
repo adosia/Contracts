@@ -5,17 +5,17 @@ set -e
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
 
-${cli} transaction witness \
-    --tx-body-file tmp/tx.draft \
-    --signing-key-file policy/policy.skey \
-    --out-file tmp/tx.witness \
-    --testnet-magic 2
+# ${cli} transaction witness \
+#     --tx-body-file tmp/tx.draft \
+#     --signing-key-file policy/policy.skey \
+#     --out-file tmp/tx.witness \
+#     --testnet-magic 2
 
-${cli} transaction assemble \
-    --tx-body-file tmp/tx.draft \
-    --witness-file tmp/tx.witness \
-    --witness-file tmp/wallet.witness \
-    --out-file tmp/tx.signed
+# ${cli} transaction assemble \
+#     --tx-body-file tmp/tx.draft \
+#     --witness-file tmp/tx.witness \
+#     --witness-file tmp/wallet.witness \
+#     --out-file tmp/tx.signed
 
 ${cli} transaction submit \
     --testnet-magic 2 \
