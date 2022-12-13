@@ -29,7 +29,7 @@ design_lock_address=$(${cli} address build --payment-script-file ${design_lock_s
 echo -e "Marketplace Script: " $script_address
 echo -e "Design Locking Script: " $design_lock_address
 
-# design starter nft
+# design starter token
 policy_id=$(cat ../../start_info.json | jq -r .starterPid)
 token_name=$(cat ../../start_info.json | jq -r .starterTkn)
 starter_asset="1 ${policy_id}.${token_name}"
@@ -40,7 +40,7 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --tx-out-inline-datum-file ../design-minter-scripts/data/datum/worst_case_datum.json \
     --tx-out="${script_address} + 5000000 + ${starter_asset}" | tr -dc '0-9')
 
-returning_starter_nft="${design_lock_address} + ${min_utxo} + ${starter_asset}"
+returning_starter_token="${design_lock_address} + ${min_utxo} + ${starter_asset}"
 
 # asset to trade
 designPolicy=$(cat ../design-minter-scripts/data/datum/token_design_datum.json | jq -r .fields[0].bytes)
@@ -49,24 +49,27 @@ designPrefix=$(cat ../design-minter-scripts/data/datum/token_design_datum.json |
 
 # purchase order info
 designToken=${designPrefix}$(echo -n ${designNumber} | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
-# designToken=$(echo -n "Adosia_Designs_11111111_11111111" | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')
 
 design_asset="1 ${designPolicy}.${designToken}"
 
 nextDesignNumber=$((${designNumber} + 1))
 
+# make a copy for the next state
 cp ../design-minter-scripts/data/datum/token_design_datum.json ../design-minter-scripts/data/datum/updated_token_design_datum.json
 
-variable=${nextDesignNumber}; jq --argjson variable "$variable" '.fields[1].int=$variable' ../design-minter-scripts/data/datum/token_design_datum.json > ../design-minter-scripts/data/datum/updated_token_design_datum.json
-mv ../design-minter-scripts/data/datum/updated_token_design_datum.json ../design-minter-scripts/data/datum/token_design_datum.json
+# update the next state with a new design number
+variable=${nextDesignNumber}; jq --argjson variable "$variable" '.fields[1].int=$variable' ../design-minter-scripts/data/datum/updated_token_design_datum.json > ../design-minter-scripts/data/datum/updated_token_design_datum-new.json
+mv ../design-minter-scripts/data/datum/updated_token_design_datum-new.json ../design-minter-scripts/data/datum/updated_token_design_datum.json
 
-# update the register redeemer to put the stake key on chain
+# design token prefix for purchase orders
 variable=${designToken}; jq --arg variable "$variable" '.fields[2].bytes=$variable' ./data/datum/token_sale_datum.json > ./data/datum/token_sale_datum-new.json
 mv ./data/datum/token_sale_datum-new.json ./data/datum/token_sale_datum.json
 
+# reset counter to zero
 variable=0; jq --argjson variable "$variable" '.fields[3].int=$variable' ./data/datum/token_sale_datum.json > ./data/datum/token_sale_datum-new.json
 mv ./data/datum/token_sale_datum-new.json ./data/datum/token_sale_datum.json
 
+# assume default price of 1 ADA
 variable=1000000; jq --argjson variable "$variable" '.fields[5].int=$variable' ./data/datum/token_sale_datum.json > ./data/datum/token_sale_datum-new.json
 mv ./data/datum/token_sale_datum-new.json ./data/datum/token_sale_datum.json
 
@@ -77,8 +80,8 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --tx-out="${script_address} + 5000000 + ${design_asset}" | tr -dc '0-9')
 
 design_to_be_sold="${script_address} + ${min_utxo} + ${design_asset}"
-echo -e "\nCreating A New Token Sale In The Marketplace:\n" ${design_to_be_sold}
-echo -e "\nReturning The Designer Minter NFT:\n" ${returning_starter_nft}
+echo -e "\nCreating A New Design Sale In The Marketplace:\n" ${design_to_be_sold}
+echo -e "\nReturning The Design Starter Token:\n" ${returning_starter_token}
 #
 # exit
 #
@@ -97,7 +100,7 @@ if [ "$TXNS" -eq "0" ]; then
 fi
 alltxin=""
 TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/designer_utxo.json)
-HEXTXIN=${TXIN::-8}
+designer_tx_in=${TXIN::-8}
 
 # design locking script
 echo -e "\033[0;36m Gathering Script UTxO Information  \033[0m"
@@ -140,14 +143,14 @@ FEE=$(${cli} transaction build \
     --script-valid \
     --change-address ${designer_address} \
     --tx-in-collateral="${collat_utxo}" \
-    --tx-in ${HEXTXIN} \
+    --tx-in ${designer_tx_in} \
     --tx-in ${script_tx_in} \
     --spending-tx-in-reference="${script_ref_utxo}#1" \
     --spending-plutus-script-v2 \
     --spending-reference-tx-in-inline-datum-present \
     --spending-reference-tx-in-redeemer-file ../design-minter-scripts/data/redeemer/mint_redeemer.json \
-    --tx-out="${returning_starter_nft}" \
-    --tx-out-inline-datum-file ../design-minter-scripts/data/datum/token_design_datum.json \
+    --tx-out="${returning_starter_token}" \
+    --tx-out-inline-datum-file ../design-minter-scripts/data/datum/updated_token_design_datum.json \
     --tx-out="${design_to_be_sold}" \
     --tx-out-inline-datum-file ./data/datum/token_sale_datum.json \
     --required-signer-hash ${collat_pkh} \
@@ -180,3 +183,5 @@ echo -e "\033[0;36m Submitting \033[0m"
 ${cli} transaction submit \
     --testnet-magic ${testnet_magic} \
     --tx-file tmp/tx.signed
+
+mv ../design-minter-scripts/data/datum/updated_token_design_datum.json ../design-minter-scripts/data/datum/token_design_datum.json

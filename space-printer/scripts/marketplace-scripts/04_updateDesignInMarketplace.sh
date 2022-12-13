@@ -23,7 +23,7 @@ echo -e "Designer:" ${designer_address}
 collat_address=$(cat wallets/collat/payment.addr)
 collat_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/collat/payment.vkey)
 
-# asset to trade
+# asset to update
 starterPid=$(cat ../design-minter-scripts/data/datum/token_design_datum.json | jq -r .fields[0].bytes)
 starterTkn=$(cat ./data/datum/token_sale_datum.json  | jq -r .fields[2].bytes)
 
@@ -43,10 +43,11 @@ fi
 
 echo -e "\nNew Design Price Is ${1} Lovelace\n" 
 
-# # update the register redeemer to put the stake key on chain
+# # update the price in the token design datum
 variable=${1}; jq --argjson variable "$variable" '.fields[5].int=$variable' ./data/datum/updated_token_sale_datum.json > ./data/datum/updated_token_sale_datum-new.json
 mv ./data/datum/updated_token_sale_datum-new.json ./data/datum/updated_token_sale_datum.json
 
+# check if the min ada needs to be increased
 current_min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --babbage-era \
     --protocol-params-file ./tmp/protocol.json \
@@ -76,9 +77,8 @@ else
     mv ./data/redeemer/update_redeemer-new.json ./data/redeemer/update_redeemer.json
 fi
 
-
 design_to_be_updated="${script_address} + ${min_utxo} + ${asset}"
-echo -e "\nCreating A New Token Sale In The Marketplace:\n" ${design_to_be_updated}
+echo -e "\nUpdating A Design In The Marketplace:\n" ${design_to_be_updated}
 #
 # exit
 #

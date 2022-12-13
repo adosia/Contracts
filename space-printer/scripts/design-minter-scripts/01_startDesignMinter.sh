@@ -21,7 +21,7 @@ script_address=$(${cli} address build --payment-script-file ${script_path} --tes
 designer_address=$(cat wallets/designer/payment.addr)
 designer_pkh=$(${cli} address key-hash --payment-verification-key-file wallets/designer/payment.vkey)
 
-# design starter nft
+# design starter token
 policy_id=$(cat ../../start_info.json | jq -r .starterPid)
 token_name=$(cat ../../start_info.json | jq -r .starterTkn)
 asset="1 ${policy_id}.${token_name}"
