@@ -61,59 +61,42 @@ data CustomDatumType = CustomDatumType
   { cdtPolicyId :: PlutusV2.CurrencySymbol
   -- ^ The policy id from the minting script.
   , cdtNumber   :: Integer
-  -- ^ The starting number for the catalog.
+  -- ^ The starting number for the collection.
   , cdtPrefix   :: PlutusV2.BuiltinByteString
-  -- ^ The prefix for a catalog.
+  -- ^ The prefix for a collection.
   }
 PlutusTx.unstableMakeIsData ''CustomDatumType
 
+-- The new datum's cdtNumber is one more than the old datum's cdtNumber.
 checkDatumIncrease :: CustomDatumType -> CustomDatumType -> Bool
 checkDatumIncrease a b =  ( cdtPolicyId    a == cdtPolicyId b ) &&
                           ( cdtNumber  a + 1 == cdtNumber   b ) &&
                           ( cdtPrefix      a == cdtPrefix   b )
-
--- old === new | burning
-instance Eq CustomDatumType where
-  {-# INLINABLE (==) #-}
-  a == b =  ( cdtPolicyId a == cdtPolicyId b ) &&
-            ( cdtNumber   a == cdtNumber   b ) &&
-            ( cdtPrefix   a == cdtPrefix   b )
 -------------------------------------------------------------------------------
 -- | Create the redeemer type.
 -------------------------------------------------------------------------------
-data CustomRedeemerType = Mint |
-                          Burn
-PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Mint, 0 )
-                                                , ( 'Burn, 1 )
-                                                ]
+data CustomRedeemerType = Mint
+PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'Mint, 0 ) ]
 -------------------------------------------------------------------------------
 -- | mkValidator :: Datum -> Redeemer -> ScriptContext -> Bool
 -------------------------------------------------------------------------------
 {-# INLINABLE mkValidator #-}
 mkValidator :: CustomDatumType -> CustomRedeemerType -> PlutusV2.ScriptContext -> Bool
 mkValidator datum redeemer context =
-  {- | Design Locking
+  {- | Design State
 
-      Handles the minting and burning of official Adosia Designs Tokens.
+      Handles the minting the official Adosia Designs Tokens.
 
       A designer mints their design with their specific design metadata.
   -}
   case redeemer of
-    -- mint a new Adosia design
+    -- Mint a new Adosia design.
     Mint -> do
-      { let a = traceIfFalse "Single In/Out Error" $ isNInputs txInputs 1 && isNOutputs contOutputs 1 -- 1 script input 1 script output
-      ; let b = traceIfFalse "NFT Minting Error"   checkMintedAmount                                  -- mint an nft only
-      ; let c = traceIfFalse "Invalid Datum Error" $ isEmbeddedDatumIncreasing contOutputs            -- value is cont and the datum is correct.
-      ; let d = traceIfFalse "Invalid Start Token" $ Value.geq validatingValue lockValue              -- must contain the start token
-      ;         traceIfFalse "Locking:Mint Error"  $ all (==True) [a,b,c,d]
-      }
-    -- burn an existing Adosia design
-    Burn -> do
-      { let a = traceIfFalse "Single In/Out Error" $ isNInputs txInputs 1 && isNOutputs contOutputs 1 -- 1 script input 1 script output
-      ; let b = traceIfFalse "NFT Burning Error"   checkBurnedAmount                                  -- burn an nft only
-      ; let c = traceIfFalse "Invalid Datum Error" $ isEmbeddedDatumConstant contOutputs              -- value is cont and the datum is correct.
-      ; let d = traceIfFalse "Invalid Start Token" $ Value.geq validatingValue lockValue              -- must contain the start token
-      ;         traceIfFalse "Locking:Burn Error"  $ all (==True) [a,b,c,d]
+      { let a = traceIfFalse "Invalid In/Out"  $ isNInputs txInputs 1 && isNOutputs contOutputs 1 -- 1 script input 1 script output
+      ; let b = traceIfFalse "Invalid Minting" checkMintedAmount                                  -- mint an nft only
+      ; let c = traceIfFalse "Invalid Datum"   $ isEmbeddedDatumIncreasing contOutputs            -- value is cont and the datum is correct.
+      ; let d = traceIfFalse "Invalid Token"   $ Value.geq validatingValue lockValue              -- must contain the start token
+      ;         traceIfFalse "Design:Mint"     $ all (==True) [a,b,c,d]
       }
    where
     info :: PlutusV2.TxInfo
@@ -125,7 +108,6 @@ mkValidator datum redeemer context =
     txInputs :: [PlutusV2.TxInInfo]
     txInputs = PlutusV2.txInfoInputs  info
 
-    -- token info
     validatingValue :: PlutusV2.Value
     validatingValue =
       case ContextsV2.findOwnInput context of
@@ -139,48 +121,23 @@ mkValidator datum redeemer context =
         [(cs, tkn, amt)] -> cs == cdtPolicyId datum                                              && 
                             Value.unTokenName tkn == nftName (cdtPrefix datum) (cdtNumber datum) && 
                             amt == (1 :: Integer)
-        _                -> traceIfFalse "Incorrect Minting Info" False
+        _                -> traceIfFalse "Bad Mint Data" False
     
-    -- burning stuff
-    checkBurnedAmount :: Bool
-    checkBurnedAmount =
-      case Value.flattenValue (PlutusV2.txInfoMint info) of
-        [(cs, _, amt)] -> cs == cdtPolicyId datum && 
-                          amt == (-1 :: Integer)
-        _              -> traceIfFalse "Incorrect Burning Info" False
-    
-    -- datum stuff
+    -- datum stuff for minting
     isEmbeddedDatumIncreasing :: [PlutusV2.TxOut] -> Bool
     isEmbeddedDatumIncreasing []     = traceIfFalse "No Increasing Datum Found" False
     isEmbeddedDatumIncreasing (x:xs) =
-      if PlutusV2.txOutValue x == validatingValue -- strict value continue
+      if PlutusV2.txOutValue x == validatingValue -- strict value continuation
         then
           case PlutusV2.txOutDatum x of
-            PlutusV2.NoOutputDatum       -> isEmbeddedDatumIncreasing xs -- datumless
-            (PlutusV2.OutputDatumHash _) -> isEmbeddedDatumIncreasing xs -- embedded datum
+            PlutusV2.NoOutputDatum       -> isEmbeddedDatumIncreasing xs -- skip datumless
+            (PlutusV2.OutputDatumHash _) -> isEmbeddedDatumIncreasing xs -- skip embedded datum
             -- inline datum only
             (PlutusV2.OutputDatum (PlutusV2.Datum d)) -> 
               case PlutusTx.fromBuiltinData d of
-                Nothing     -> isEmbeddedDatumIncreasing xs -- bad data
-                Just inline -> checkDatumIncrease datum inline
+                Nothing     -> isEmbeddedDatumIncreasing xs    -- bad data
+                Just inline -> checkDatumIncrease datum inline -- data equality function
         else isEmbeddedDatumIncreasing xs
-
-    -- datum stuff
-    isEmbeddedDatumConstant :: [PlutusV2.TxOut] -> Bool
-    isEmbeddedDatumConstant []     = traceIfFalse "No Constant Datum Found" False
-    isEmbeddedDatumConstant (x:xs) =
-      if PlutusV2.txOutValue x == validatingValue -- strict value continue
-        then
-          case PlutusV2.txOutDatum x of
-            PlutusV2.NoOutputDatum       -> isEmbeddedDatumConstant xs -- datumless
-            (PlutusV2.OutputDatumHash _) -> isEmbeddedDatumConstant xs -- embedded datum
-            -- inline datum only
-            (PlutusV2.OutputDatum (PlutusV2.Datum d)) -> 
-              case PlutusTx.fromBuiltinData d of
-                Nothing     -> isEmbeddedDatumConstant xs
-                Just inline -> datum == inline
-        else isEmbeddedDatumConstant xs
-
 -------------------------------------------------------------------------------
 -- | Now we need to compile the Validator.
 -------------------------------------------------------------------------------
