@@ -57,7 +57,7 @@ tokenValue :: PlutusV2.Value
 tokenValue = Value.singleton startPid startTkn (1 :: Integer)
 
 designValidatorHash :: PlutusV2.ValidatorHash
-designValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString [77, 191, 153, 199, 68, 127, 230, 39, 151, 107, 157, 213, 243, 100, 207, 96, 204, 25, 254, 151, 97, 165, 30, 87, 145, 148, 24, 134]
+designValidatorHash = PlutusV2.ValidatorHash $ createBuiltinByteString [26, 80, 106, 238, 245, 98, 72, 84, 146, 143, 173, 6, 97, 0, 27, 1, 239, 147, 225, 9, 59, 50, 140, 200, 65, 94, 74, 221]
 -------------------------------------------------------------------------------
 -- | Create the redeemer data object.
 -------------------------------------------------------------------------------
@@ -65,52 +65,45 @@ data CustomRedeemerType = CustomRedeemerType
   { crtPolicyId :: PlutusV2.CurrencySymbol
   -- ^ The policy id from the minting script.
   , crtNumber  :: Integer
-  -- ^ The starting number for the catalog.
+  -- ^ The starting number for the collection.
   , crtPrefix  :: PlutusV2.BuiltinByteString
-  -- ^ The prefix for a catalog.
+  -- ^ The prefix for a collection.
   }
 PlutusTx.unstableMakeIsData ''CustomRedeemerType
 
--- old == new
-instance Eq CustomRedeemerType where
-  {-# INLINABLE (==) #-}
-  a == b = ( crtPolicyId a == crtPolicyId b ) &&
-           ( crtNumber   a == crtNumber   b ) &&
-           ( crtPrefix   a == crtPrefix   b )
+-- The new datum's crtNumber is one more than the old datum's crtNumber.
+checkDatumIncrease :: CustomRedeemerType -> CustomRedeemerType -> Bool
+checkDatumIncrease a b =  ( crtPolicyId    a == crtPolicyId b ) &&
+                          ( crtNumber  a + 1 == crtNumber   b ) &&
+                          ( crtPrefix      a == crtPrefix   b )
 -------------------------------------------------------------------------------
 {-# INLINABLE mkPolicy #-}
 mkPolicy :: BuiltinData -> PlutusV2.ScriptContext -> Bool
-mkPolicy _ context = traceIfFalse "Mint / Burn Error" $ (checkTokenMint && checkMintDatum) || (checkTokenBurn && checkBurningDatum) -- mint or burn
+mkPolicy _ context = traceIfFalse "Mint Error" checkMintDatum -- mint
   where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo context
 
     txInputs :: [PlutusV2.TxInInfo]
     txInputs = ContextsV2.txInfoInputs info
-    
+
     -- check that the locking script has the correct datum hash
     checkMintDatum :: Bool
     checkMintDatum =
       case checkInputs txInputs of
         Nothing -> traceIfFalse "No Input Datum" False
         Just inputDatum  ->
-          let nextDatum = CustomRedeemerType  { crtPolicyId = crtPolicyId inputDatum
-                                              , crtNumber   = (crtNumber  inputDatum) + 1
-                                              , crtPrefix   = crtPrefix   inputDatum
-                                              }
-          in case datumAtValidator of
-            Nothing          -> traceIfFalse "No Output Datum" False
-            Just outputDatum -> nextDatum == outputDatum
-    
-    -- check that the locking script has the correct datum hash
-    checkBurningDatum :: Bool
-    checkBurningDatum =
-      case checkInputs txInputs of
-        Nothing         -> traceIfFalse "No Input Datum" False
-        Just inputDatum ->
           case datumAtValidator of
             Nothing          -> traceIfFalse "No Output Datum" False
-            Just outputDatum -> inputDatum == outputDatum
+            Just outputDatum -> checkDatumIncrease inputDatum outputDatum
+    
+    -- return the first datum hash from a txout going to the locking script
+    checkInputs :: [PlutusV2.TxInInfo] -> Maybe CustomRedeemerType
+    checkInputs [] = Nothing
+    checkInputs (x:xs) =
+      if PlutusV2.txOutAddress (PlutusV2.txInInfoResolved x) == Addr.scriptHashAddress designValidatorHash
+        then getDatumFromTxOut $ PlutusV2.txInInfoResolved x
+        else checkInputs xs
 
     -- check if the incoming datum is the correct form.
     getDatumFromTxOut :: PlutusV2.TxOut -> Maybe CustomRedeemerType
@@ -123,14 +116,6 @@ mkPolicy _ context = traceIfFalse "Mint / Burn Error" $ (checkTokenMint && check
           case PlutusTx.fromBuiltinData d of
             Nothing     -> Nothing
             Just inline -> Just $ PlutusTx.unsafeFromBuiltinData @CustomRedeemerType inline
-    
-    -- return the first datum hash from a txout going to the locking script
-    checkInputs :: [PlutusV2.TxInInfo] -> Maybe CustomRedeemerType
-    checkInputs [] = Nothing
-    checkInputs (x:xs) =
-      if PlutusV2.txOutAddress (PlutusV2.txInInfoResolved x) == Addr.scriptHashAddress designValidatorHash
-        then getDatumFromTxOut $ PlutusV2.txInInfoResolved x
-        else checkInputs xs
 
     datumAtValidator :: Maybe CustomRedeemerType
     datumAtValidator =
@@ -149,23 +134,6 @@ mkPolicy _ context = traceIfFalse "Mint / Burn Error" $ (checkTokenMint && check
       where 
         scriptOutputs :: [(PlutusV2.OutputDatum, PlutusV2.Value)]
         scriptOutputs = ContextsV2.scriptOutputsAt designValidatorHash info
-        
-    -- check the minting stuff here
-    checkTokenMint :: Bool
-    checkTokenMint =
-      case Value.flattenValue (PlutusV2.txInfoMint info) of
-        [(cs, _, amt)] -> cs == ContextsV2.ownCurrencySymbol context && 
-                          amt == (1 :: Integer)
-        _              -> traceIfFalse "Mint Error" False
-    
-    -- check the burning stuff here
-    checkTokenBurn :: Bool
-    checkTokenBurn =
-      case Value.flattenValue (PlutusV2.txInfoMint info) of
-        [(cs, _, amt)] -> cs == ContextsV2.ownCurrencySymbol context && 
-                          amt == (-1 :: Integer)
-        _              -> traceIfFalse "Burn Error" False
-    
 -------------------------------------------------------------------------------
 policy :: PlutusV2.MintingPolicy
 policy = PlutusV2.mkMintingPolicyScript $$(PlutusTx.compile [|| wrap ||])
