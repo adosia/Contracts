@@ -32,7 +32,6 @@ cardano-cli address build --payment-script-file locking-contract.plutus --testne
 cardano-cli transaction policyid --script-file locking-contract.plutus > validator.hash
 python3 -c "import binascii;a='$(cat validator.hash)';s=binascii.unhexlify(a);print([x for x in s])" > validator.bytes
 
-
 echo 
 echo -e "\033[1;33m Validator Address: $(cat validator.addr) \033[0m" 
 echo -e "\033[1;33m Validator Hash: $(cat validator.hash) \033[0m" 
@@ -40,13 +39,11 @@ echo -e "\033[1;33m Validator Bytes: $(cat validator.bytes) \033[0m"
 
 cd ..
 
-
 echo -e "\033[1;35m \nPlacing Design Validator hash Into Design Mint Contract. \033[0m"
 
 # adds in the locking hash into the script
 python3 -c "from update_contracts import changeDesignLockHash;changeDesignLockHash('./design-minting-contract/src/MintingContract.hs', './design-minting-contract/src/MintingContract-new.hs', $(cat ./design-locking-contract/validator.bytes))"
 mv ./design-minting-contract/src/MintingContract-new.hs ./design-minting-contract/src/MintingContract.hs
-
 
 echo -e "\033[1;35m \nBuilding Design Minting Contract. \033[0m"
 echo
