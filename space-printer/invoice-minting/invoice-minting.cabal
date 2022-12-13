@@ -2,9 +2,9 @@ cabal-version: 2.4
 
 name:                   invoice-minting
 version:                1.0
-description:            A plutus script.
-author:                 NA
-maintainer:             fake@email.com
+description:            A plutus script for the marketplace.
+author:                 The Ancient Kraken
+maintainer:             logical.mechanism@protonmail.com
 license:                AGPL-3.0-only
 build-type:             Simple
 
@@ -46,7 +46,6 @@ library
   hs-source-dirs:       src
 
   exposed-modules:      InvoiceMinting
-                        TokenHelper
 
 
   build-depends:        bytestring

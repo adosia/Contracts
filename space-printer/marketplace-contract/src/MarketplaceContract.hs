@@ -46,7 +46,6 @@ import           TokenHelper
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
-  Version  : Rev 1
 -}
 -------------------------------------------------------------------------------
 -- | Starter Token Information
@@ -85,7 +84,7 @@ mkValidator datum redeemer context =
           { let designerPkh   = mDesignerPKH datum
           ; let designerSc    = mDesignerSC  datum
           ; let designerAddr  = createAddress designerPkh designerSc
-          ; let a = traceIfFalse "Starter NFT"     $ Value.valueOf validatingValue startPid (mStartName datum) == (1 :: Integer)
+          ; let a = traceIfFalse "Starter Token"   $ Value.valueOf validatingValue startPid (mStartName datum) == (1 :: Integer)
           ; let b = traceIfFalse "Single Script"   $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1
           ; let c = traceIfFalse "Designer Payout" $ (mPoFreeFlag datum == 1) || isAddrGettingPaidExactly txOutputs designerAddr (adaValue $ mPoPrice datum)
           ; let d = traceIfFalse "Minting Info"    checkMintedAmount
@@ -101,7 +100,8 @@ mkValidator datum redeemer context =
           ; let a = traceIfFalse "Wrong Signer"   $ ContextsV2.txSignedBy info designerPkh
           ; let b = traceIfFalse "Single Script"  $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1
           ; let c = traceIfFalse "In/Out Datum"   $ updateSalePrice datum incomingDatum
-          ;         traceIfFalse "UpdatePO Error" $ all (==True) [a,b,c]
+          ; let d = traceIfFalse "Starter Token"  $ Value.valueOf validatingValue startPid (mStartName datum) == (1 :: Integer)
+          ;         traceIfFalse "UpdatePO Error" $ all (==True) [a,b,c,d]
           }
     -- allows a new designer to make an offer for this design
     (Offer ud ndd) -> let incomingValue = validatingValue + adaValue (uInc ud) in 
@@ -114,7 +114,8 @@ mkValidator datum redeemer context =
           ; let b = traceIfFalse "Incorrect Signer"   $ ContextsV2.txSignedBy info newDesignerPkh
           ; let c = traceIfFalse "Single Script UTxO" $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1
           ; let d = traceIfFalse "Incorrect Datum"    $ checkNewDatum datum ndd incomingDatum
-          ;         traceIfFalse "Offer Endpoint"     $ all (==True) [a,b,c,d]
+          ; let e = traceIfFalse "Starter Token"      $ Value.valueOf validatingValue startPid (mStartName datum) == (1 :: Integer)
+          ;         traceIfFalse "Offer Endpoint"     $ all (==True) [a,b,c,d,e]
           }
    where
     info :: PlutusV2.TxInfo

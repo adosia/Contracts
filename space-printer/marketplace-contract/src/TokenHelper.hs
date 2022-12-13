@@ -26,56 +26,24 @@
 {-# OPTIONS_GHC -fno-specialise               #-}
 {-# OPTIONS_GHC -fexpose-all-unfoldings       #-}
 module TokenHelper
-  ( integerToHex
-  , integerToInteger
-  , nftName
+  ( nftName
   ) where
 import           PlutusTx.Prelude
-import qualified PlutusTx.Builtins.Internal as Internal
-import qualified Plutus.V2.Ledger.Api       as PlutusV2
-
+import qualified Plutus.V2.Ledger.Api as PlutusV2
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
-  Version  : Rev 0
 -}
 -------------------------------------------------------------------------------
--- Creates an NFT Name
+-- | Create a token name using a prefix and an integer counter, i.e. token1, token2, etc.
 -------------------------------------------------------------------------------
 nftName :: PlutusV2.BuiltinByteString -> Integer -> PlutusV2.BuiltinByteString
-nftName prefix num = prefix <> integerToInteger num
-
+nftName prefix num = prefix <> integerAsString num
 -------------------------------------------------------------------------------
--- Converts any Integer into base 16 (hex) String. 101 -> "65"
+-- | The Mapping for converting an integer into a stringed version.
 -------------------------------------------------------------------------------
-integerToHex :: Integer -> PlutusV2.BuiltinByteString
-integerToHex num =  convertToHex base16 ""
-  where
-    base16 :: [Integer]
-    base16 = baseQ num 16 []
-
-    convertToHex :: [Integer] -> PlutusV2.BuiltinByteString -> PlutusV2.BuiltinByteString
-    convertToHex [] str = str
-    convertToHex (x:xs) str = convertToHex xs (str <> intChars x)
-
--------------------------------------------------------------------------------
--- Converts any Integer into base 10 (Integer) String. 101 -> "101"
--------------------------------------------------------------------------------
-integerToInteger :: Integer -> PlutusV2.BuiltinByteString
-integerToInteger num = if num == 0 then "0" else convertToHex base16 ""
-  where
-    base16 :: [Integer]
-    base16 = baseQ num 10 []
-
-    convertToHex :: [Integer] -> PlutusV2.BuiltinByteString -> PlutusV2.BuiltinByteString
-    convertToHex [] str = str
-    convertToHex (x:xs) str = convertToHex xs (str <> intChars x)
-
--------------------------------------------------------------------------------
--- Converts a single Integer into base 16 (hex) Character.
--------------------------------------------------------------------------------
-intChars :: Integer -> PlutusV2.BuiltinByteString
-intChars ch
+integerToStringMapping :: Integer -> PlutusV2.BuiltinByteString
+integerToStringMapping ch
   | ch == 0   = "0"
   | ch == 1   = "1"
   | ch == 2   = "2"
@@ -86,16 +54,27 @@ intChars ch
   | ch == 7   = "7"
   | ch == 8   = "8"
   | ch == 9   = "9"
-  | ch == 10  = "a"
-  | ch == 11  = "b"
-  | ch == 12  = "c"
-  | ch == 13  = "d"
-  | ch == 14  = "e"
-  | ch == 15  = "f"
-  | otherwise = ""
+  | otherwise = emptyByteString
+-------------------------------------------------------------------------------
+-- | Convert an integer into a string.
+-------------------------------------------------------------------------------
+integerAsString :: Integer -> PlutusV2.BuiltinByteString
+integerAsString num = if num == 0 then "0" else convertToString base10 ""
+  where
+    base10 :: [Integer]
+    base10 = baseQ num 10
 
+    convertToString :: [Integer] -> BuiltinByteString -> BuiltinByteString
+    convertToString []     str = str
+    convertToString (x:xs) str = convertToString xs (str <> integerToStringMapping x)
 -------------------------------------------------------------------------------
--- Converts any Integer into base Q
+-- | Write an integer in base Q and return a list of integers.
 -------------------------------------------------------------------------------
-baseQ :: Integer -> Integer -> [Integer] -> [Integer]
-baseQ number base list = if number == 0 then list else baseQ (Internal.divideInteger number base) base (Internal.modInteger number base : list)
+baseQ :: Integer -> Integer -> [Integer]
+baseQ number base = baseQ' number base []
+  where
+    baseQ' :: Integer -> Integer -> [Integer] -> [Integer]
+    baseQ' number' base' list = do
+      if number' == 0
+      then list
+      else baseQ' (divide number' base') base' (modulo number' base' : list)

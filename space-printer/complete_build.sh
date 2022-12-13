@@ -21,6 +21,7 @@ python3 -c "from update_contracts import changeStartTkn;changeStartTkn('./design
 mv ./design-minting-contract/src/MintingContract-new.hs ./design-minting-contract/src/MintingContract.hs
 
 echo -e "\033[1;35m \nBuilding Design Locking Contract. \033[0m"
+echo 
 
 cd design-locking-contract
 
@@ -48,6 +49,7 @@ mv ./design-minting-contract/src/MintingContract-new.hs ./design-minting-contrac
 
 
 echo -e "\033[1;35m \nBuilding Design Minting Contract. \033[0m"
+echo
 
 cd design-minting-contract
 
@@ -87,7 +89,8 @@ mv ./marketplace-contract/src/MarketplaceContract-new.hs ./marketplace-contract/
 python3 -c "from update_contracts import changeStartPid;changeStartPid('./invoice-minting/src/InvoiceMinting.hs', './invoice-minting/src/InvoiceMinting-new.hs', ${designPidBytes})"
 mv ./invoice-minting/src/InvoiceMinting-new.hs ./invoice-minting/src/InvoiceMinting.hs
 
-echo -e "\033[1;35m \nBuilding Marketplace Contract... \033[0m" 
+echo -e "\033[1;35m \nBuilding Marketplace Contract. \033[0m" 
+echo
 
 cd marketplace-contract
 
@@ -103,7 +106,6 @@ echo -e "\033[1;33m Validator Address: $(cat validator.addr) \033[0m"
 echo -e "\033[1;33m Validator Hash: $(cat validator.hash) \033[0m" 
 echo -e "\033[1;33m Validator Bytes: $(cat validator.bytes) \033[0m" 
 
-
 cd ..
 
 echo -e "\033[1;35m \nPlacing Marketplace Script Hash Into Invoice Contract. \033[0m" 
@@ -111,6 +113,9 @@ echo -e "\033[1;35m \nPlacing Marketplace Script Hash Into Invoice Contract. \03
 # adds in the locking hash into the script
 python3 -c "from update_contracts import changeLockHash;changeLockHash('./invoice-minting/src/InvoiceMinting.hs', './invoice-minting/src/InvoiceMinting-new.hs', $(cat ./marketplace-contract/validator.bytes))"
 mv ./invoice-minting/src/InvoiceMinting-new.hs ./invoice-minting/src/InvoiceMinting.hs
+
+echo -e "\033[1;35m \nBuilding Invoice Contract. \033[0m"
+echo
 
 cd invoice-minting
 
@@ -130,9 +135,14 @@ mv ../scripts/marketplace-scripts/data/datum/token_sale_datum-new.json ../script
 
 cd ..
 
+echo -e "\033[1;35m \nPlacing Marketplace Invoice Policy ID Into Printing Pool Contract. \033[0m" 
+
 # adds in the locking hash into the script
 python3 -c "from update_contracts import changeStartLockPid;changeStartLockPid('./printing-pool/src/PrintingPool.hs', './printing-pool/src/PrintingPool-new.hs', $(cat ./invoice-minting/policy.bytes))"
 mv ./printing-pool/src/PrintingPool-new.hs ./printing-pool/src/PrintingPool.hs
+
+echo -e "\033[1;35m \nBuilding Printing Pool Contract. \033[0m"
+echo
 
 cd printing-pool
 
@@ -142,7 +152,6 @@ cabal run printing-pool
 cardano-cli address build --payment-script-file printing-pool.plutus --testnet-magic ${testnet_magic} --out-file validator.addr
 cardano-cli transaction policyid --script-file printing-pool.plutus > validator.hash
 python3 -c "import binascii;a='$(cat validator.hash)';s=binascii.unhexlify(a);print([x for x in s])" > validator.bytes
-
 
 echo 
 echo -e "\033[1;33m Validator Address: $(cat validator.addr) \033[0m" 
