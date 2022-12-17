@@ -29,8 +29,6 @@ echo
 echo "Marketplace Script Address:" ${market}
 ${cli} query utxo --address ${market} --testnet-magic ${testnet_magic}
 
-# $(${cli} query utxo --address ${market} --testnet-magic ${testnet_magic} --out-file design.output) \
-# cat design.output | jq -r to_entries[]
 
 echo
 echo "Designer Address:" ${designer}
@@ -52,6 +50,12 @@ echo
 echo "Collat Address:" ${collat}
 ${cli} query utxo --address ${collat} --testnet-magic ${testnet_magic}
 
+# echo
+# echo "Address:"
+# ${cli} query utxo --address addr_test1qqk3u9geuu4zkl82chc5l5t3cwc6x38x7exqvel5ha3zspr6jeraypygwzs8ymmcvgvx8cphjlwp0w2xguarthk5ta6sszx960 --testnet-magic ${testnet_magic}
 
 # ${cli} query utxo --tx-in a4800dab7f89a834043460104d543ec669a5c979093e8fe27a93e0e24d25d151#0 --testnet-magic ${testnet_magic} --out-file utxo.output
 # cat utxo.output | jq -r to_entries[].value.inlineDatum
+
+# $(${cli} query utxo --address ${design} --testnet-magic ${testnet_magic} --out-file design.output) \
+# cat design.output | jq
