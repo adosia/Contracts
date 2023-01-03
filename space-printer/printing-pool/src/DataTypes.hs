@@ -143,9 +143,9 @@ checkShippingStatus a b = ( oiCustomerPKH a == siCustomerPKH b ) &&
 data MakeOfferType = MakeOfferType
   { makeOfferPrice :: Integer
   -- ^ The lovelace amount for the printer payout.
-  , moTx :: PlutusV2.TxId
+  , moTx           :: PlutusV2.BuiltinByteString
   -- ^ The tx hash of the other utxo being swapped.
-  , moIdx :: Integer
+  , moIdx          :: Integer
   -- ^ The index of the tx hash.
   }
 PlutusTx.unstableMakeIsData ''MakeOfferType

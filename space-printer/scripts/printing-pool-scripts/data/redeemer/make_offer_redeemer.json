@@ -5,10 +5,10 @@
       "constructor": 0,
       "fields": [
         {
-          "int": 1234567
+          "int": 12345678
         },
         {
-          "bytes":""
+          "bytes": "4de3116f8f912d00927fba399dce93eed8a60aead79fa7ac2abc73f613b5a862"
         },
         {
           "int": 0

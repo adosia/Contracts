@@ -92,11 +92,11 @@ mint_min_utxo=$(${cli} transaction calculate-min-required-utxo \
 
 design_to_be_returned="${script_address} + ${min_utxo} + ${asset}"
 customer_address_out="${pool_address} + ${mint_min_utxo} + ${mint_asset}"
-designer_address_out="${designer_address} + ${poPrice}"
+# designer_address_out="${designer_address} + ${poPrice}"
 
 echo "Script OUTPUT: "${design_to_be_returned}
 echo "Customer OUTPUT: "${customer_address_out}
-echo "Designer OUTPUT: "${designer_address_out}
+# echo "Designer OUTPUT: "${designer_address_out}
 #
 # exit
 #
@@ -162,7 +162,6 @@ FEE=$(${cli} transaction build \
     --spending-plutus-script-v2 \
     --spending-reference-tx-in-inline-datum-present \
     --spending-reference-tx-in-redeemer-file ./data/redeemer/mint_redeemer.json \
-    --tx-out="${designer_address_out}" \
     --tx-out="${customer_address_out}" \
     --tx-out-inline-datum-file ../printing-pool-scripts/data/datum/printing_pool_datum.json \
     --tx-out="${design_to_be_returned}" \
@@ -176,6 +175,7 @@ FEE=$(${cli} transaction build \
     --metadata-json-file metadata.json \
     --testnet-magic ${testnet_magic})
 
+    # --tx-out="${designer_address_out}" \
 IFS=':' read -ra VALUE <<< "${FEE}"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
 FEE=${FEE[1]}
