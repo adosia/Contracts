@@ -106,7 +106,7 @@ mkValidator datum redeemer context =
           ;         traceIfFalse "PrintingPool:Remove" $ all (==(True :: Bool)) [a,b,c]
           }
         -- | customer updates their purchase order
-        (Update mot) -> let additionalValue = validatingValue + (adaValue $ makeOfferPrice mot)
+        (Update mot) -> let additionalValue = validatingValue + (adaValue $ moPrice mot)
           in case getContinuingDatum contTxOutputs additionalValue of
             (PrintingPool ppt') -> do
               { let a = traceIfFalse "Incorrect Signer"     $ ContextsV2.txSignedBy info (ppCustomerPKH ppt)                                  -- customer must sign it
@@ -117,7 +117,7 @@ mkValidator datum redeemer context =
               }
             _ -> False
         -- | Check that this value goes to the post offer stage and that the offer gets sent back to the printer
-        (Offer mot) -> let additionalValue = validatingValue + (adaValue $ makeOfferPrice mot)
+        (Offer mot) -> let additionalValue = validatingValue + (adaValue $ moPrice mot)
           in case getContinuingDatum contTxOutputs additionalValue of
             (PostOfferInformation oit) -> let txId = createTxOutRef (moTx mot) (moIdx mot)
               in case getDatumByTxId txId of
@@ -147,7 +147,7 @@ mkValidator datum redeemer context =
           { let printerPkh  = oiPrinterPKH oit
           ; let printerSc   = oiPrinterSC  oit
           ; let printerAddr = createAddress printerPkh printerSc
-          ; let a = traceIfFalse "Wrong Printer Signer"          $ ContextsV2.txSignedBy info printerPkh
+          ; let a = traceIfFalse "Wrong Printer Signer"        $ ContextsV2.txSignedBy info printerPkh
           ; let b = traceIfFalse "Offer Not Returned"          $ isAddrGettingPaidExactly txOutputs printerAddr validatingValue -- token must go back to printer
           ; let c = traceIfFalse "Single Script UTxO"          $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0             -- single script input
           ;         traceIfFalse "MakeOfferInformation:Remove" $ all (==(True :: Bool)) [a,b,c]
@@ -213,7 +213,7 @@ mkValidator datum redeemer context =
               }
             _ -> False
         -- | Printer and customer agree to update the offer, time only no money.
-        (Update mot) -> let additionalValue = validatingValue + (adaValue $ makeOfferPrice mot)
+        (Update mot) -> let additionalValue = validatingValue + (adaValue $ moPrice mot)
           in case getContinuingDatum contTxOutputs additionalValue of
             (PostOfferInformation oit') -> do
               { let customerPkh = oiCustomerPKH oit
