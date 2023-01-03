@@ -144,19 +144,9 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${printer_address} \
     --tx-in ${printer_tx_in} \
-    --tx-in ${customer_tx_in} \
     --tx-in-collateral ${collat_utxo} \
-    --tx-in ${script_tx_in}  \
-    --spending-tx-in-reference="${script_ref_utxo}#1" \
-    --spending-plutus-script-v2 \
-    --spending-reference-tx-in-inline-datum-present \
-    --spending-reference-tx-in-redeemer-file ./data/redeemer/offer_redeemer.json \
-    --tx-out="${customer_out}" \
-    --tx-out="${job_to_be_selected}" \
-    --tx-out-inline-datum-file data/datum/offer_information_datum.json \
-    --required-signer-hash ${customer_pkh} \
-    --required-signer-hash ${printer_pkh} \
-    --required-signer-hash ${collat_pkh} \
+    --tx-out="${offer_to_be_made}" \
+    --tx-out-inline-datum-file data/datum/make_offer_information_datum.json \
     --testnet-magic ${testnet_magic})
 
 IFS=':' read -ra VALUE <<< "$FEE"

@@ -87,6 +87,18 @@ data OfferInformationType = OfferInformationType
   }
 PlutusTx.unstableMakeIsData ''OfferInformationType
 
+-- old == new
+instance Eq OfferInformationType where
+  {-# INLINABLE (==) #-}
+  a == b = ( oiCustomerPKH a == oiCustomerPKH b ) &&
+           ( oiCustomerSC  a == oiCustomerSC  b ) &&
+           ( oiRegionCode  a == oiRegionCode  b ) &&
+           ( oiPOName      a == oiPOName      b ) &&
+           ( oiPrinterPKH  a == oiPrinterPKH  b ) &&
+           ( oiPrinterSC   a == oiPrinterSC   b ) &&
+           ( oiOfferPrice  a == oiOfferPrice  b ) &&
+           ( oiPrintTime   a == oiPrintTime   b )
+
 checkPrintingInfo :: PrintingPoolType -> OfferInformationType -> Bool
 checkPrintingInfo a b =  ( ppCustomerPKH a == oiCustomerPKH b ) &&
                          ( ppCustomerSC  a == oiCustomerSC  b ) &&
