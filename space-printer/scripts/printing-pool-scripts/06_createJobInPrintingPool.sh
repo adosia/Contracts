@@ -44,7 +44,7 @@ if [ "$TXNS" -eq "0" ]; then
 fi
 alltxin=""
 TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/customer_utxo.json)
-HEXTXIN=${TXIN::-8}
+customer_tx_in=${TXIN::-8}
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
@@ -52,7 +52,7 @@ FEE=$(${cli} transaction build \
     --protocol-params-file tmp/protocol.json \
     --out-file tmp/tx.draft \
     --change-address ${customer_address} \
-    --tx-in ${HEXTXIN} \
+    --tx-in ${customer_tx_in} \
     --tx-out="${customer_job_to_be_printed}" \
     --tx-out-inline-datum-file data/datum/printing_pool_datum.json \
     --testnet-magic ${testnet_magic})

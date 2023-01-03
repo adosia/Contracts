@@ -55,7 +55,7 @@ if [ "$TXNS" -eq "0" ]; then
 fi
 alltxin=""
 TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/customer_utxo.json)
-HEXTXIN=${TXIN::-8}
+customer_tx_in=${TXIN::-8}
 
 echo -e "\033[0;36m Getting Script UTxO Information  \033[0m"
 ${cli} query utxo \
@@ -70,7 +70,7 @@ if [ "$TXNS" -eq "0" ]; then
 fi
 alltxin=""
 TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/script_utxo.json)
-SCRIPT_TXIN=${TXIN::-8}
+script_tx_in=${TXIN::-8}
 
 # collat info
 echo -e "\033[0;36m Gathering Collateral UTxO Information  \033[0m"
@@ -94,9 +94,9 @@ FEE=$(${cli} transaction build \
     --protocol-params-file tmp/protocol.json \
     --out-file tmp/tx.draft \
     --change-address ${customer_address} \
-    --tx-in ${HEXTXIN} \
+    --tx-in ${customer_tx_in} \
     --tx-in-collateral ${collat_utxo} \
-    --tx-in ${SCRIPT_TXIN} \
+    --tx-in ${script_tx_in} \
     --spending-tx-in-reference="${script_ref_utxo}#1" \
     --spending-plutus-script-v2 \
     --spending-reference-tx-in-inline-datum-present \

@@ -60,7 +60,7 @@ if [ "$TXNS" -eq "0" ]; then
 fi
 alltxin=""
 TXIN=$(jq -r --arg alltxin "" 'keys[] | . + $alltxin + " --tx-in"' tmp/designer_utxo.json)
-HEXTXIN=${TXIN::-8}
+designer_tx_in=${TXIN::-8}
 
 echo -e "\033[0;36m Building Tx \033[0m"
 FEE=$(${cli} transaction build \
@@ -68,7 +68,7 @@ FEE=$(${cli} transaction build \
     --protocol-params-file tmp/protocol.json \
     --out-file tmp/tx.draft \
     --change-address ${designer_address} \
-    --tx-in ${HEXTXIN} \
+    --tx-in ${designer_tx_in} \
     --tx-out="${script_address_out}" \
     --tx-out-inline-datum-file ./data/datum/token_design_datum.json \
     --mint-script-file policy/policy.script \

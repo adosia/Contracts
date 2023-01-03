@@ -34,7 +34,7 @@ min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --tx-out-inline-datum-file ./data/datum/printing_pool_datum.json \
     --tx-out="$script_address + 5000000 + $asset" | tr -dc '0-9')
 
-offer_price=$(cat data/datum/offer_information_datum.json  | jq .fields[0].fields[6].int)
+offer_price=$(cat data/datum/offer_information_datum.json | jq .fields[0].fields[6].int)
 
 job_to_be_selected="${script_address} + ${min_utxo} + ${asset}"
 payment_return="${customer_address} + ${offer_price}"
