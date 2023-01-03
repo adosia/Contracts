@@ -33,6 +33,7 @@ module DataTypes
   , adjustPrintingTime
   , ShippingInfoType (..)
   , checkShippingStatus
+  , UpdateADAType (..)
   , MakeOfferType (..)
   , checkPrintingOffer
   ) where
@@ -139,13 +140,20 @@ checkShippingStatus a b = ( oiCustomerPKH a == siCustomerPKH b ) &&
                           ( oiPrinterSC   a == siPrinterSC   b ) &&
                           ( oiOfferPrice  a == siOfferPrice  b ) &&
                           ( oiPOName      a == siPOName      b )
-
+-------------------------------------------------------------------------------
+-- | Update ADA Data Object
+-------------------------------------------------------------------------------
+data UpdateADAType = UpdateADAType { upADA :: Integer }
+PlutusTx.unstableMakeIsData ''UpdateADAType
+-------------------------------------------------------------------------------
+-- | Make Offer Data Object
+-------------------------------------------------------------------------------
 data MakeOfferType = MakeOfferType
   { moPrice :: Integer
   -- ^ The lovelace amount for the printer payout.
-  , moTx           :: PlutusV2.BuiltinByteString
+  , moTx    :: PlutusV2.BuiltinByteString
   -- ^ The tx hash of the other utxo being swapped.
-  , moIdx          :: Integer
+  , moIdx   :: Integer
   -- ^ The index of the tx hash.
   }
 PlutusTx.unstableMakeIsData ''MakeOfferType

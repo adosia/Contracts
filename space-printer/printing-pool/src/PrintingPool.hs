@@ -68,7 +68,7 @@ PlutusTx.makeIsDataIndexed ''CustomDatumType  [ ('PrintingPool,          0)
 -- | Create the redeemer parameters data object.
 -------------------------------------------------------------------------------
 data CustomRedeemerType = Remove               |
-                          Update MakeOfferType |
+                          Update UpdateADAType |
                           Offer  MakeOfferType |
                           Accept               |
                           Cancel               |
@@ -106,7 +106,7 @@ mkValidator datum redeemer context =
           ;         traceIfFalse "PrintingPool:Remove" $ all (==(True :: Bool)) [a,b,c]
           }
         -- | customer updates their purchase order
-        (Update mot) -> let additionalValue = validatingValue + (adaValue $ moPrice mot)
+        (Update upd) -> let additionalValue = validatingValue + (adaValue $ upADA upd)
           in case getContinuingDatum contTxOutputs additionalValue of
             (PrintingPool ppt') -> do
               { let a = traceIfFalse "Incorrect Signer"     $ ContextsV2.txSignedBy info (ppCustomerPKH ppt)                                  -- customer must sign it
@@ -214,7 +214,7 @@ mkValidator datum redeemer context =
               }
             _ -> False
         -- | Printer and customer agree to update the offer, time only no money.
-        (Update mot) -> let additionalValue = validatingValue + (adaValue $ moPrice mot)
+        (Update upd) -> let additionalValue = validatingValue + (adaValue $ upADA upd)
           in case getContinuingDatum contTxOutputs additionalValue of
             (PostOfferInformation oit') -> do
               { let customerPkh = oiCustomerPKH oit
