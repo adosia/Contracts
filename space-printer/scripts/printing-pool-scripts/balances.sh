@@ -42,3 +42,6 @@ echo
 echo "Collat Address:" ${collat}
 ${cli} query utxo --address ${collat} --testnet-magic ${testnet_magic}
 
+# ${cli} query utxo --tx-in e00c245387ec35ec75711a0828b7eae9d0da2b72ae23eedef84567c7757ed41d#1 --testnet-magic ${testnet_magic} --out-file po.utxo
+
+# cat po.utxo | jq to_entries[]

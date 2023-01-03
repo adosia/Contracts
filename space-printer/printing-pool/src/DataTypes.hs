@@ -29,11 +29,12 @@ module DataTypes
   ( PrintingPoolType (..)
   , checkPrintingPoolUpdate
   , OfferInformationType (..)
-  , checkPrintingOffer
+  , checkPrintingInfo
   , adjustPrintingTime
   , ShippingInfoType (..)
   , checkShippingStatus
   , MakeOfferType (..)
+  , checkPrintingOffer
   ) where
 import qualified PlutusTx
 import           PlutusTx.Prelude
@@ -63,9 +64,8 @@ checkPrintingPoolUpdate a b = ( ppCustomerPKH a == ppCustomerPKH b ) &&
                               ( ppCustomerSC  a == ppCustomerSC  b ) &&
                               ( ppRegionCode  a /= ppRegionCode  b ) &&
                               ( ppPOName      a == ppPOName      b )
-
 -------------------------------------------------------------------------------
--- | Make Offer Data Object
+-- | Make Post Offer Data Object
 -------------------------------------------------------------------------------
 data OfferInformationType = OfferInformationType
   { oiCustomerPKH :: PlutusV2.PubKeyHash
@@ -87,11 +87,11 @@ data OfferInformationType = OfferInformationType
   }
 PlutusTx.unstableMakeIsData ''OfferInformationType
 
-checkPrintingOffer :: PrintingPoolType -> OfferInformationType -> Bool
-checkPrintingOffer a b =  ( ppCustomerPKH a == oiCustomerPKH b ) &&
-                          ( ppCustomerSC  a == oiCustomerSC  b ) &&
-                          ( ppRegionCode  a == oiRegionCode  b ) &&
-                          ( ppPOName      a == oiPOName      b )
+checkPrintingInfo :: PrintingPoolType -> OfferInformationType -> Bool
+checkPrintingInfo a b =  ( ppCustomerPKH a == oiCustomerPKH b ) &&
+                         ( ppCustomerSC  a == oiCustomerSC  b ) &&
+                         ( ppRegionCode  a == oiRegionCode  b ) &&
+                         ( ppPOName      a == oiPOName      b )
 
 adjustPrintingTime :: OfferInformationType -> OfferInformationType -> Bool
 adjustPrintingTime a b =  ( oiCustomerPKH a == oiCustomerPKH b ) &&
@@ -131,5 +131,12 @@ checkShippingStatus a b = ( oiCustomerPKH a == siCustomerPKH b ) &&
 data MakeOfferType = MakeOfferType
   { makeOfferPrice :: Integer
   -- ^ The lovelace amount for the printer payout.
+  , moTx :: PlutusV2.TxId
+  -- ^ The tx hash of the other utxo being swapped.
+  , moIdx :: Integer
+  -- ^ The index of the tx hash.
   }
 PlutusTx.unstableMakeIsData ''MakeOfferType
+
+checkPrintingOffer :: MakeOfferType -> OfferInformationType -> Bool
+checkPrintingOffer a b = ( makeOfferPrice a == oiOfferPrice b )
