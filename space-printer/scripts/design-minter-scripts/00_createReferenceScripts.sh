@@ -229,3 +229,45 @@ ${cli} transaction txid --tx-file ../reference-txs/tx-printing-reference.signed
 echo -e "\nDesign Minter"
 cp tmp/tx-3.signed ../reference-txs/tx-design-reference.signed
 ${cli} transaction txid --tx-file ../reference-txs/tx-design-reference.signed
+
+
+
+market_script_path="../../marketplace-contract/marketplace-contract.plutus"
+design_script_path="../../design-locking-contract/locking-contract.plutus"
+pool_script_path="../../printing-pool/printing-pool.plutus"
+
+script=$(${cli} address build --payment-script-file ${market_script_path} --testnet-magic ${testnet_magic})
+script_ref_utxo=$(${cli} transaction txid --tx-file ../reference-txs/tx-marketplace-reference.signed)
+
+echo MARKETPLACE_CONTRACT_SCRIPT_ADDRESS="\"${script}\"" > ../env
+echo MARKETPLACE_LOCKING_REFERENCE_TX_ID="\"${script_ref_utxo}#1\"" >> ../env
+echo MARKETPLACE_MINTING_REFERENCE_TX_ID="\"${script_ref_utxo}#2\"" >> ../env
+echo "" >> ../env
+
+script=$(${cli} address build --payment-script-file ${pool_script_path} --testnet-magic ${testnet_magic})
+script_ref_utxo=$(${cli} transaction txid --tx-file ../reference-txs/tx-printing-reference.signed)
+
+echo PRINTING_POOL_CONTRACT_SCRIPT_ADDRESS="\"${script}\"" >> ../env
+echo PRINTING_POOL_LOCKING_REFERENCE_TX_ID="\"${script_ref_utxo}#1\"" >> ../env
+echo "" >> ../env
+
+script=$(${cli} address build --payment-script-file ${design_script_path} --testnet-magic ${testnet_magic})
+script_ref_utxo=$(${cli} transaction txid --tx-file ../reference-txs/tx-design-reference.signed)
+
+echo DESIGN_CONTRACT_SCRIPT_ADDRESS="\"${script}\"" >> ../env
+echo DESIGN_CONTRACT_LOCKING_REFERENCE_TX_ID="\"${script_ref_utxo}#1\"" >> ../env
+echo DESIGN_CONTRACT_MINTING_REFERENCE_TX_ID="\"${script_ref_utxo}#2\"" >> ../env
+echo "" >> ../env
+
+starter_pid=$(cat ../../start_info.json | jq -r .starterPid)
+starter_tkn=$(cat ../../start_info.json | jq -r .starterTkn)
+design_pid=$(cat ../../design-minting-contract/policy.id)
+po_pid=$(cat ../../invoice-minting/policy.id)
+
+echo DESIGN_PREFIX="\"Adosia_Designs_\"" >> ../env
+echo DESIGN_STARTER_POLICY_ID="\"${starter_pid}\"" >> ../env
+echo DESIGN_STARTER_ASSET_ID="\"${starter_tkn}\"" >> ../env
+echo DESIGN_POLICY_ID="\"${design_pid}\"" >> ../env
+echo PURCHASE_ORDER_POLICY_ID="\"${po_pid}\"" >> ../env
+echo "" >> ../env
+

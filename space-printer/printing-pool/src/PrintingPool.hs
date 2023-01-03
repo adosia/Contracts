@@ -147,11 +147,12 @@ mkValidator datum redeemer context =
           { let printerPkh  = oiPrinterPKH oit
           ; let printerSc   = oiPrinterSC  oit
           ; let printerAddr = createAddress printerPkh printerSc
-          ; let a = traceIfFalse "Wrong Printer Signer"        $ ContextsV2.txSignedBy info printerPkh
+          ; let a = traceIfFalse "Wrong Printer Signer"        $ ContextsV2.txSignedBy info printerPkh                          -- The printer must sign it
           ; let b = traceIfFalse "Offer Not Returned"          $ isAddrGettingPaidExactly txOutputs printerAddr validatingValue -- token must go back to printer
           ; let c = traceIfFalse "Single Script UTxO"          $ isNInputs txInputs 1 && isNOutputs contTxOutputs 0             -- single script input
           ;         traceIfFalse "MakeOfferInformation:Remove" $ all (==(True :: Bool)) [a,b,c]
           }
+        -- | A customer can accept an offer made by a printer
         (Offer mot) -> let txId = createTxOutRef (moTx mot) (moIdx mot)
           in case getDatumByTxId txId of
             -- | Only the printing pool utxos may be validated
@@ -160,7 +161,7 @@ mkValidator datum redeemer context =
               ; let printerSc   = oiPrinterSC  oit
               ; let printerAddr = createAddress printerPkh printerSc
               ; let customerPkh = ppCustomerPKH ppt
-              ; let a = traceIfFalse "Wrong Customer Signer"       $ ContextsV2.txSignedBy info customerPkh
+              ; let a = traceIfFalse "Wrong Customer Signer"       $ ContextsV2.txSignedBy info customerPkh                         -- The customer must sign it 
               ; let b = traceIfFalse "Offer Not Returned"          $ isAddrGettingPaidExactly txOutputs printerAddr validatingValue -- token must go back to printer
               ; let c = traceIfFalse "Single Script UTxO"          $ isNInputs txInputs 2 && isNOutputs contTxOutputs 1             -- single script input
               ; let d = traceIfFalse "Incorrect New State"         $ checkPrintingInfo ppt oit && checkPrintingOffer mot oit        -- printer must change the datum 
@@ -189,7 +190,7 @@ mkValidator datum redeemer context =
               ; let a = traceIfFalse "Incorrect Signer"            $ ContextsV2.txSignedBy info (oiPrinterPKH oit)              -- customer must sign it
               ; let b = traceIfFalse "Offer Not Returned"          $ isAddrGettingPaidExactly txOutputs customerAddr offerValue -- token must go back to customer
               ; let c = traceIfFalse "Single Script UTxO"          $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1         -- single script input
-              ; let d = traceIfFalse "Incorrect State"             $ checkPrintingInfo ppt oit                                 -- the token is getting an offer
+              ; let d = traceIfFalse "Incorrect State"             $ checkPrintingInfo ppt oit                                  -- the token is getting an offer
               ; let e = traceIfFalse "Wrong Purchase Order"        $ Value.valueOf validatingValue purchaseOrderPid (oiPOName oit) == (1 :: Integer)
               ;         traceIfFalse "PostOfferInformation:Cancel" $ all (==(True :: Bool)) [a,b,c,d,e]
               }
@@ -206,7 +207,7 @@ mkValidator datum redeemer context =
               ; let a = traceIfFalse "Incorrect Signer"            $ ContextsV2.txSignedBy info customerPkh                     -- customer must sign it
               ; let b = traceIfFalse "Offer Not Returned"          $ isAddrGettingPaidExactly txOutputs customerAddr offerValue -- token must go back to customer
               ; let c = traceIfFalse "Single Script UTxO"          $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1         -- single script input
-              ; let d = traceIfFalse "Incorrect State"             $ checkPrintingInfo ppt oit                                 -- the token is getting an offer
+              ; let d = traceIfFalse "Incorrect State"             $ checkPrintingInfo ppt oit                                  -- the token is getting an offer
               ; let e = traceIfFalse "Wrong Purchase Order"        $ Value.valueOf validatingValue purchaseOrderPid (oiPOName oit) == (1 :: Integer)
               ; let f = traceIfFalse "Job Is Still Printing"       $ not $ Interval.overlaps (lockUntilTimeInterval (oiPrintTime oit)) validityRange
               ;         traceIfFalse "PostOfferInformation:Remove" $ all (==(True :: Bool)) [a,b,c,d,e,f]
