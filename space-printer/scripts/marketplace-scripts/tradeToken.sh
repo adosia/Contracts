@@ -4,30 +4,38 @@ set -e
 # SET UP VARS HERE
 export CARDANO_NODE_SOCKET_PATH=$(cat path_to_socket.sh)
 cli=$(cat path_to_cli.sh)
+testnet_magic=$(cat ../testnet.magic)
 
 # Addresses
-sender_address=$(cat wallets/customer/payment.addr)
-# receiver_address=$(cat wallets/designer/payment.addr)
-receiver_address="addr_test1qrp98gmajj0p423gkf35q2c890m7ygr6az82htthwhehu9qtq9jtz4znnkg3d7zhp0zluwpea5x4xjkxyv3kxmdlvpaqr8lhr3"
+sender_wallet_path="wallets/designer/"
+sender_address=$(cat ${sender_wallet_path}payment.addr)
+sender_pkh=$(${cli} address key-hash --payment-verification-key-file ${sender_wallet_path}payment.vkey)
+
+receiver_wallet_path="wallets/printer/"
+receiver_address=$(cat ${receiver_wallet_path}payment.addr)
+receiver_pkh=$(${cli} address key-hash --payment-verification-key-file ${receiver_wallet_path}payment.vkey)
+
+# receiver_address="addr_test1qrupt9d9ug2ufnrrajp2q7gwvmrtzzgr80p5ug7q8nt4d66hu0s5mnhxh2853wtsgn9gdz6wuqtaqnkv0yk78p474d6qudapqh"
 
 # Define Asset to be printed here
-asset="1 acdcb6494ba64a727e67dc1043e79722e2d331fc4bc99842414a7549.61737472696e676865726531"
+asset="1 15c0aaecc4c09d24d6c840185b6ea2ad3c07c48459b0342aabd79518.7468697369736164657356644c5841766b50495a794e5f30"
 CHANGE_ASSET=""
 
 min_utxo=$(${cli} transaction calculate-min-required-utxo \
     --protocol-params-file tmp/protocol.json \
-    --tx-out="${receiver_address} ${asset}" | tr -dc '0-9')
-token_to_be_traded="${receiver_address} + ${min_utxo} + ${asset}"
+    --tx-out="${receiver_address}+ 5000000 + ${asset}" | tr -dc '0-9')
 
-change_return_out="${sender_address} + ${min_utxo} + ${CHANGE_ASSET}"
+token_to_be_traded="${receiver_address} + ${min_utxo} + ${asset}"
+change_return_out="${receiver_address} + 250000000"
 
 echo -e "\nTrading A Token:\n" ${token_to_be_traded}
+echo -e "\nTrading A Token:\n" ${change_return_out}
 #
 # exit
 #
 echo -e "\033[0;36m Gathering UTxO Information  \033[0m"
 ${cli} query utxo \
-    --testnet-magic 1097911063 \
+    --testnet-magic ${testnet_magic} \
     --address ${sender_address} \
     --out-file tmp/sender_utxo.json
 
@@ -47,9 +55,12 @@ FEE=$(${cli} transaction build \
     --out-file tmp/tx.draft \
     --change-address ${sender_address} \
     --tx-in ${HEXTXIN} \
-    --tx-out="${token_to_be_traded}" \
-    --testnet-magic 1097911063)
+    --tx-out="${change_return_out}" \
+    --required-signer-hash ${sender_pkh} \
+    --required-signer-hash ${receiver_pkh} \
+    --testnet-magic ${testnet_magic})
 
+    # --tx-out="${token_to_be_traded}" \
 IFS=':' read -ra VALUE <<< "${FEE}"
 IFS=' ' read -ra FEE <<< "${VALUE[1]}"
 FEE=${FEE[1]}
@@ -57,16 +68,29 @@ echo -e "\033[1;32m Fee: \033[0m" $FEE
 #
 # exit
 #
-echo -e "\033[0;36m Signing \033[0m"
+${cli} transaction witness \
+    --tx-body-file tmp/tx.draft \
+    --signing-key-file ${sender_wallet_path}payment.skey \
+    --out-file tmp/tx.witness \
+    --testnet-magic 2
+
+echo -e "\033[0;36m Sender Is Signing \033[0m"
 ${cli} transaction sign \
-    --signing-key-file wallets/customer/payment.skey \
+    --signing-key-file ${sender_wallet_path}payment.skey \
     --tx-body-file tmp/tx.draft \
     --out-file tmp/tx.signed \
-    --testnet-magic 1097911063
+    --testnet-magic ${testnet_magic}
+
+echo -e "\033[0;36m Receiver Is Signing \033[0m"
+${cli} transaction sign \
+    --signing-key-file ${receiver_wallet_path}payment.skey \
+    --tx-file tmp/tx.signed \
+    --out-file tmp/tx.signed \
+    --testnet-magic ${testnet_magic}
 #
 # exit
 #
-echo -e "\033[0;36m Submitting \033[0m"
+echo -e "\033[0;36m Submitting Tx \033[0m"
 ${cli} transaction submit \
-    --testnet-magic 1097911063 \
+    --testnet-magic ${testnet_magic} \
     --tx-file tmp/tx.signed

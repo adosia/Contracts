@@ -47,22 +47,16 @@ library
 
   exposed-modules:      MarketplaceContract
                         DataTypes
-                        CheckFuncs
                         TokenHelper
 
   build-depends:        bytestring
                       , cardano-api
-                      , plutus-ledger
                       , plutus-ledger-api
                       , plutus-tx
                       , plutus-tx-plugin
-                      , plutus-contract
-                      , playground-common
+                      , plutus-script-utils
                       , serialise
-                      , text
-                      , containers
-                      , openapi3
-                      , aeson
+                      , useful-funcs
 
   ghc-options: -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
 
@@ -73,8 +67,5 @@ executable marketplace-contract
   ghc-options:          -threaded -rtsopts "-with-rtsopts=-T"
 
   build-depends:        cardano-api
-                      , cardano-ledger-alonzo
                       , marketplace-contract
-                      , plutus-ledger-api
-                      , bytestring
 

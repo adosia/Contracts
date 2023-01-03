@@ -2,8 +2,6 @@ cradle:
   cabal:
     - path: "./printing-pool/src"
       component: "printing-pool:lib:printing-pool"
-    - path: "./printing-pool/pab"
-      component: "printing-pool:exe:plutus-starter-pab"
     - path: "./marketplace-contract/src"
       component: "marketplace-contract:lib:marketplace-contract"
     - path: "./invoice-minting/src"

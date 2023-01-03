@@ -28,150 +28,159 @@
 module MarketplaceContract
   ( lockingContractScript
   , lockingContractScriptShortBs
-  , Schema
-  , contract
   ) where
 import qualified PlutusTx
 import           PlutusTx.Prelude
-import           Plutus.Contract
-import           Codec.Serialise            ( serialise )
-import qualified Data.ByteString.Lazy       as LBS
-import qualified Data.ByteString.Short      as SBS
-import           Ledger                     hiding ( singleton )
-import qualified Ledger.Typed.Scripts       as Scripts
-import qualified Plutus.V1.Ledger.Scripts   as Plutus
-import qualified Plutus.V1.Ledger.Value     as Value
-import qualified Plutus.V1.Ledger.Ada       as Ada
-import           Cardano.Api.Shelley        ( PlutusScript (..), PlutusScriptV1 )
-import           CheckFuncs
+import           Cardano.Api.Shelley            ( PlutusScript (..), PlutusScriptV2 )
+import           Codec.Serialise                ( serialise )
+import qualified Data.ByteString.Lazy           as LBS
+import qualified Data.ByteString.Short          as SBS
+import qualified Plutus.V1.Ledger.Scripts       as Scripts
+import qualified Plutus.V1.Ledger.Value         as Value
+import qualified Plutus.V2.Ledger.Contexts      as ContextsV2
+import qualified Plutus.V2.Ledger.Api           as PlutusV2
+import           Plutus.Script.Utils.V2.Scripts as Utils
 import           DataTypes
+import           UsefulFuncs
 import           TokenHelper
 {- |
   Author   : The Ancient Kraken
   Copyright: 2022
-  Version  : Rev 0
 -}
 -------------------------------------------------------------------------------
--- | Create the contract parameters data object.
+-- | Starter Token Information
 -------------------------------------------------------------------------------
-data LockingContractParams = LockingContractParams {}
-PlutusTx.makeLift ''LockingContractParams
-
+startPid :: PlutusV2.CurrencySymbol
+startPid = PlutusV2.CurrencySymbol { PlutusV2.unCurrencySymbol = createBuiltinByteString [236, 102, 139, 127, 238, 248, 107, 129, 145, 173, 190, 202, 215, 60, 58, 233, 79, 236, 26, 127, 247, 232, 146, 16, 181, 228, 45, 246] }
 -------------------------------------------------------------------------------
 -- | Create the redeemer type.
 -------------------------------------------------------------------------------
-data CustomRedeemerType = MintPO |
-                          Remove
-PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'MintPO, 0 )
-                                                , ( 'Remove, 1 )
+data CustomRedeemerType = MintPO   IncreaseData |
+                          UpdatePO IncreaseData |
+                          Offer    IncreaseData NewDesignerData
+PlutusTx.makeIsDataIndexed ''CustomRedeemerType [ ( 'MintPO,   0 )
+                                                , ( 'UpdatePO, 1 )
+                                                , ( 'Offer,    2 )
                                                 ]
-PlutusTx.makeLift ''CustomRedeemerType
-
 -------------------------------------------------------------------------------
--- | mkValidator :: TypeData -> Datum -> Redeemer -> ScriptContext -> Bool
+-- | mkValidator :: Datum -> Redeemer -> ScriptContext -> Bool
 -------------------------------------------------------------------------------
 {-# INLINABLE mkValidator #-}
-mkValidator :: LockingContractParams -> MarketDataType -> CustomRedeemerType -> ScriptContext -> Bool
-mkValidator _ datum redeemer context =
+mkValidator :: MarketDataType -> CustomRedeemerType -> PlutusV2.ScriptContext -> Bool
+mkValidator datum redeemer context =
+  {- | Adosia Marketplace
+
+      Handles the minting, burning, and updateing of official Adosia Purchase Order Tokens.
+
+      Designers place their design tokens into the marketplace for customers to pay to
+      mint their purchase order tokens.
+  -}
   case redeemer of
-    MintPO -> do
-      { let designerPkh   = mDesignerPKH datum
-      ; let designerSc    = mDesignerSC  datum
-      ; let designerAddr  = createAddress designerPkh designerSc
-      ; let a = traceIfFalse "Starting NFT Error"    $ Value.valueOf validatingValue (mStartPolicy datum) (mStartName datum) == (1 :: Integer)
-      ; let b = traceIfFalse "Single Script Error"   $ isSingleScript txInputs
-      ; let c = traceIfFalse "Cont Value Error"      $ isValueContinuing contOutputs validatingValue
-      ; let d = traceIfFalse "Minting Info Error"    checkMintedAmount
-      ; let e = traceIfFalse "In/Out Datum Error"    $ isEmbeddedDatum contOutputs
-      ; let f = traceIfFalse "Designer Payout Error" $ isAddrGettingPaid txOutputs designerAddr (Ada.lovelaceValueOf $ mPoPrice datum)
-      ;         traceIfFalse "MintPO Endpoint Error" $ all (==True) [a,b,c,d,e,f]
-      }
-    Remove -> do
-      { let designerPkh   = mDesignerPKH datum
-      ; let designerSc    = mDesignerSC  datum
-      ; let designerAddr  = createAddress designerPkh designerSc
-      ; let a = traceIfFalse "Incorrect Signer Error" $ txSignedBy info (mDesignerPKH datum)
-      ; let b = traceIfFalse "Single Script Error"    $ isSingleScript txInputs
-      ; let c = traceIfFalse "Designer Pay Error"     $ isAddrGettingPaid txOutputs designerAddr validatingValue
-      ;         traceIfFalse "Remove Endpoint Error"  $ all (==True) [a,b,c]
-      }
+    -- mint a purchase order for a customer
+    (MintPO ud) -> let incomingValue = validatingValue + adaValue (uInc ud) in 
+      case getOutboundDatumByValue contTxOutputs incomingValue of
+        Nothing            -> traceIfFalse "MintPO:GetOutboundDatumByValue Error" False
+        Just incomingDatum -> do
+          { let designerPkh   = mDesignerPKH datum
+          ; let designerSc    = mDesignerSC  datum
+          ; let designerAddr  = createAddress designerPkh designerSc
+          ; let a = traceIfFalse "Starter Token"   $ Value.valueOf validatingValue startPid (mStartName datum) == (1 :: Integer)
+          ; let b = traceIfFalse "Single Script"   $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1
+          ; let c = traceIfFalse "Designer Payout" $ (mPoFreeFlag datum == 1) || isAddrGettingPaidExactly txOutputs designerAddr (adaValue $ mPoPrice datum)
+          ; let d = traceIfFalse "Minting Info"    checkMintedAmount
+          ; let e = traceIfFalse "In/Out Datum"    $ checkDatumIncrease datum incomingDatum
+          ;         traceIfFalse "MintPO Endpoint" $ all (==True) [a,b,c,d,e]
+          }
+    -- allows a designer to update their purchase order price
+    (UpdatePO ud) ->  let incomingValue = validatingValue + adaValue (uInc ud) in 
+      case getOutboundDatumByValue contTxOutputs incomingValue of
+        Nothing            -> traceIfFalse "UpdatePO:GetOutboundDatumByValue Error" False
+        Just incomingDatum -> do
+          { let designerPkh   = mDesignerPKH datum
+          ; let a = traceIfFalse "Wrong Signer"   $ ContextsV2.txSignedBy info designerPkh
+          ; let b = traceIfFalse "Single Script"  $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1
+          ; let c = traceIfFalse "In/Out Datum"   $ updateSalePrice datum incomingDatum
+          ; let d = traceIfFalse "Starter Token"  $ Value.valueOf validatingValue startPid (mStartName datum) == (1 :: Integer)
+          ;         traceIfFalse "UpdatePO Error" $ all (==True) [a,b,c,d]
+          }
+    -- allows a new designer to make an offer for this design
+    (Offer ud ndd) -> let incomingValue = validatingValue + adaValue (uInc ud) in 
+      case getOutboundDatumByValue contTxOutputs incomingValue of
+        Nothing            -> traceIfFalse "OfferPO:GetOutboundDatumByValue Error" False
+        Just incomingDatum -> do
+          { let designerPkh    = mDesignerPKH datum
+          ; let newDesignerPkh = newDesignerPKH ndd
+          ; let a = traceIfFalse "Incorrect Signer"   $ ContextsV2.txSignedBy info designerPkh
+          ; let b = traceIfFalse "Incorrect Signer"   $ ContextsV2.txSignedBy info newDesignerPkh
+          ; let c = traceIfFalse "Single Script UTxO" $ isNInputs txInputs 1 && isNOutputs contTxOutputs 1
+          ; let d = traceIfFalse "Incorrect Datum"    $ checkNewDatum datum ndd incomingDatum
+          ; let e = traceIfFalse "Starter Token"      $ Value.valueOf validatingValue startPid (mStartName datum) == (1 :: Integer)
+          ;         traceIfFalse "Offer Endpoint"     $ all (==True) [a,b,c,d,e]
+          }
    where
-    info :: TxInfo
-    info = scriptContextTxInfo  context
+    info :: PlutusV2.TxInfo
+    info = PlutusV2.scriptContextTxInfo context
 
-    contOutputs :: [TxOut]
-    contOutputs = getContinuingOutputs context
+    contTxOutputs :: [PlutusV2.TxOut]
+    contTxOutputs = ContextsV2.getContinuingOutputs context
 
-    txInputs :: [TxInInfo]
-    txInputs = txInfoInputs  info
+    txInputs :: [PlutusV2.TxInInfo]
+    txInputs = PlutusV2.txInfoInputs  info
 
-    txOutputs :: [TxOut]
-    txOutputs = txInfoOutputs info
+    txOutputs :: [PlutusV2.TxOut]
+    txOutputs = PlutusV2.txInfoOutputs info
 
-    validatingValue :: Value
+    -- token info
+    validatingValue :: PlutusV2.Value
     validatingValue =
-      case findOwnInput context of
-        Nothing    -> traceError "No Input to Validate." -- This error should never be hit.
-        Just input -> txOutValue $ txInInfoResolved input
-
+      case ContextsV2.findOwnInput context of
+        Nothing    -> traceError "No Input to Validate."
+        Just input -> PlutusV2.txOutValue $ PlutusV2.txInInfoResolved input
+    
+    -- minting stuff
     checkMintedAmount :: Bool
     checkMintedAmount =
-      case Value.flattenValue (txInfoMint info) of
-        [(cs, tkn, amt)] -> (cs == mPoPolicy datum) && (Value.unTokenName tkn == nftName (mPrefixName datum) (mNumber datum)) && (amt == 1)
-        _                -> False
-
-    isEmbeddedDatum :: [TxOut] -> Bool
-    isEmbeddedDatum []     = False
-    isEmbeddedDatum (x:xs) =
-      case txOutDatumHash x of
-        Nothing -> isEmbeddedDatum xs
-        Just dh ->
-          case findDatum dh info of
-            Nothing        -> False
-            Just (Datum d) ->
+      case Value.flattenValue (PlutusV2.txInfoMint info) of
+        [(cs, tkn, amt)] -> cs == mPoPolicy datum                                       && -- must be the invoice policy
+                            Value.unTokenName tkn == nftName prefixName (mNumber datum) && -- must have correct name
+                            amt == (1 :: Integer)                                          -- must be nft
+        _                -> traceIfFalse "Incorrect Minting Info" False
+      where
+        prefixName :: PlutusV2.BuiltinByteString
+        prefixName = Value.unTokenName (mStartName datum) <> "_"
+    
+    -- search for a datum by a specific value
+    getOutboundDatumByValue :: [PlutusV2.TxOut] -> PlutusV2.Value -> Maybe MarketDataType
+    getOutboundDatumByValue []     _   = Nothing
+    getOutboundDatumByValue (x:xs) val =
+      if PlutusV2.txOutValue x == val -- strict value continue
+        then
+          case PlutusV2.txOutDatum x of
+            PlutusV2.NoOutputDatum       -> getOutboundDatumByValue xs val -- skip datumless
+            (PlutusV2.OutputDatumHash _) -> getOutboundDatumByValue xs val -- skip embedded datum
+            -- inline datum only
+            (PlutusV2.OutputDatum (PlutusV2.Datum d)) -> 
               case PlutusTx.fromBuiltinData d of
-                Nothing       -> False
-                Just embedded -> datum == embedded
-
+                Nothing     -> getOutboundDatumByValue xs val
+                Just inline -> Just $ PlutusTx.unsafeFromBuiltinData @MarketDataType inline
+        else getOutboundDatumByValue xs val
 -------------------------------------------------------------------------------
--- | This determines the data type for Datum and Redeemer.
+-- | Now we need to compile the Validator.
 -------------------------------------------------------------------------------
-data Typed
-instance Scripts.ValidatorTypes Typed where
-  type instance DatumType    Typed = MarketDataType
-  type instance RedeemerType Typed = CustomRedeemerType
-
--------------------------------------------------------------------------------
--- | Now we need to compile the Typed Validator.
--------------------------------------------------------------------------------
-typedValidator :: LockingContractParams -> Scripts.TypedValidator Typed
-typedValidator lcp = Scripts.mkTypedValidator @Typed
-  ($$(PlutusTx.compile [|| mkValidator ||]) `PlutusTx.applyCode` PlutusTx.liftCode lcp)
-   $$(PlutusTx.compile [|| wrap        ||])
-    where
-      wrap = Scripts.wrapValidator @MarketDataType @CustomRedeemerType  -- @Datum @Redeemer
-
--------------------------------------------------------------------------------
--- | Define The Validator Here
--------------------------------------------------------------------------------
-validator :: Plutus.Validator
-validator = Scripts.validatorScript (typedValidator $ LockingContractParams {})
-
+validator' :: PlutusV2.Validator
+validator' = PlutusV2.mkValidatorScript
+    $$(PlutusTx.compile [|| wrap ||])
+ where
+    wrap = Utils.mkUntypedValidator mkValidator
 -------------------------------------------------------------------------------
 -- | The code below is required for the plutus script compile.
 -------------------------------------------------------------------------------
-script :: Plutus.Script
-script = Plutus.unValidatorScript validator
+script :: Scripts.Script
+script = Scripts.unValidatorScript validator'
 
 lockingContractScriptShortBs :: SBS.ShortByteString
 lockingContractScriptShortBs = SBS.toShort . LBS.toStrict $ serialise script
 
-lockingContractScript :: PlutusScript PlutusScriptV1
+lockingContractScript :: PlutusScript PlutusScriptV2
 lockingContractScript = PlutusScriptSerialised lockingContractScriptShortBs
--------------------------------------------------------------------------------
--- | Off Chain
--------------------------------------------------------------------------------
-type Schema = Endpoint "" ()
 
-contract :: AsContractError e => Contract () Schema e ()
-contract = selectList [] >> contract
