@@ -1,0 +1,84 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
+module PrinterOperator where
+
+import Plutus.V2.Ledger.Api
+import Plutus.V2.Ledger.Contexts
+import Plutus.V2.Ledger.Tx
+import Plutus.V2.Ledger.Value
+import PlutusTx
+import PlutusTx.Prelude hiding (Semigroup(..), unless)
+import Prelude (IO, Semigroup(..))
+
+-- Define the data structure for a Print Job
+data PrintJob = PrintJob
+    { designNFT :: ByteString
+    , bid :: Integer
+    , eta :: Integer
+    , shippingCost :: Integer
+    }
+
+PlutusTx.unstableMakeIsData ''PrintJob
+
+-- Define the validator for print job bids
+{-# INLINABLE printJobValidator #-}
+printJobValidator :: PrintJob -> () -> ScriptContext -> Bool
+printJobValidator job () ctx = traceIfFalse "Invalid bid" validBid &&
+                               traceIfFalse "Invalid design NFT" validDesignNFT &&
+                               traceIfFalse "Invalid shipping cost" validShippingCost
+  where
+    txInfo :: TxInfo
+    txInfo = scriptContextTxInfo ctx
+
+    -- Check that the bid is valid
+    validBid :: Bool
+    validBid = any (\i -> txOutValue (txInInfoResolved i) `geq` Ada.lovelaceValueOf (bid job)) (txInfoInputs txInfo)
+
+    -- Check that the design NFT is valid
+    validDesignNFT :: Bool
+    validDesignNFT = any (\o -> txOutValue o `geq` singleton (policyId designNFT) (TokenName (designNFT job)) 1) (txInfoOutputs txInfo)
+
+    -- Check that the shipping cost is valid
+    validShippingCost :: Bool
+    validShippingCost = shippingCost job >= 0
+
+-- Define the function to handle print job logic
+{-# INLINABLE processPrintJob #-}
+processPrintJob :: PrintJob -> ScriptContext -> Bool
+processPrintJob job ctx =
+    let
+        txInfo = scriptContextTxInfo ctx
+        inputs = txInfoInputs txInfo
+        outputs = txInfoOutputs txInfo
+        bidPaid = any (\i -> txOutValue (txInInfoResolved i) `geq` Ada.lovelaceValueOf (bid job)) inputs
+        validNFT = any (\o -> txOutValue o `geq` singleton (policyId designNFT) (TokenName (designNFT job)) 1) outputs
+    in
+        traceIfFalse "Invalid bid" bidPaid &&
+        traceIfFalse "Invalid design NFT" validNFT &&
+        traceIfFalse "Invalid shipping cost" (shippingCost job >= 0)
+
+-- Validator script
+{-# INLINABLE mkValidator #-}
+mkValidator :: PrintJob -> () -> ScriptContext -> Bool
+mkValidator job () ctx = printJobValidator job () ctx
+
+validator :: PrintJob -> Validator
+validator job = mkValidatorScript $
+    $$(PlutusTx.compile [|| mkValidator ||])
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode job
+
+-- Serialize the validator
+import Plutus.V2.Ledger.Scripts
+import Plutus.V2.Ledger.Api
+
+printJobValidator :: Validator
+printJobValidator = validator yourPrintJob
+
+serializedValidator :: Script
+serializedValidator = unValidatorScript printJobValidator
+
+-- Save the serialized validator to a file or use it in a transaction

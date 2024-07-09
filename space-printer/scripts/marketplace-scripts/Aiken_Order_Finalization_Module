@@ -1,0 +1,92 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
+module OrderFinalization where
+
+import Plutus.V2.Ledger.Api
+import Plutus.V2.Ledger.Contexts
+import Plutus.V2.Ledger.Tx
+import Plutus.V2.Ledger.Value
+import PlutusTx
+import PlutusTx.Prelude hiding (Semigroup(..), unless)
+import Prelude (IO, Semigroup(..))
+
+-- Define the data structure for Order Confirmation
+data OrderConfirmation = OrderConfirmation
+    { designNFT :: ByteString
+    , jobNFT :: ByteString
+    , finalPayment :: Integer
+    , royalty :: Integer
+    }
+
+PlutusTx.unstableMakeIsData ''OrderConfirmation
+
+-- Define the validator for order finalization
+{-# INLINABLE finalizeValidator #-}
+finalizeValidator :: OrderConfirmation -> () -> ScriptContext -> Bool
+finalizeValidator confirmation () ctx = traceIfFalse "Invalid final payment" validFinalPayment &&
+                                        traceIfFalse "Invalid design NFT" validDesignNFT &&
+                                        traceIfFalse "Invalid job NFT" validJobNFT &&
+                                        traceIfFalse "Invalid royalty payment" validRoyaltyPayment
+  where
+    txInfo :: TxInfo
+    txInfo = scriptContextTxInfo ctx
+
+    -- Check that the final payment is valid
+    validFinalPayment :: Bool
+    validFinalPayment = any (\i -> txOutValue (txInInfoResolved i) `geq` Ada.lovelaceValueOf (finalPayment confirmation)) (txInfoInputs txInfo)
+
+    -- Check that the design NFT is valid
+    validDesignNFT :: Bool
+    validDesignNFT = any (\o -> txOutValue o `geq` singleton (policyId designNFT) (TokenName (designNFT confirmation)) 1) (txInfoOutputs txInfo)
+
+    -- Check that the job NFT is valid
+    validJobNFT :: Bool
+    validJobNFT = any (\o -> txOutValue o `geq` singleton (policyId jobNFT) (TokenName (jobNFT confirmation)) 1) (txInfoOutputs txInfo)
+
+    -- Check that the royalty payment is valid
+    validRoyaltyPayment :: Bool
+    validRoyaltyPayment = any (\o -> txOutValue o `geq` Ada.lovelaceValueOf (royalty confirmation)) (txInfoOutputs txInfo)
+
+-- Define the function to handle order finalization logic
+{-# INLINABLE processOrderFinalization #-}
+processOrderFinalization :: OrderConfirmation -> ScriptContext -> Bool
+processOrderFinalization confirmation ctx =
+    let
+        txInfo = scriptContextTxInfo ctx
+        inputs = txInfoInputs txInfo
+        outputs = txInfoOutputs txInfo
+        finalPaymentValid = any (\i -> txOutValue (txInInfoResolved i) `geq` Ada.lovelaceValueOf (finalPayment confirmation)) inputs
+        validDesignNFT = any (\o -> txOutValue o `geq` singleton (policyId designNFT) (TokenName (designNFT confirmation)) 1) outputs
+        validJobNFT = any (\o -> txOutValue o `geq` singleton (policyId jobNFT) (TokenName (jobNFT confirmation)) 1) outputs
+        validRoyaltyPayment = any (\o -> txOutValue o `geq` Ada.lovelaceValueOf (royalty confirmation)) outputs
+    in
+        traceIfFalse "Invalid final payment" finalPaymentValid &&
+        traceIfFalse "Invalid design NFT" validDesignNFT &&
+        traceIfFalse "Invalid job NFT" validJobNFT &&
+        traceIfFalse "Invalid royalty payment" validRoyaltyPayment
+
+-- Validator script
+{-# INLINABLE mkValidator #-}
+mkValidator :: OrderConfirmation -> () -> ScriptContext -> Bool
+mkValidator confirmation () ctx = finalizeValidator confirmation () ctx
+
+validator :: OrderConfirmation -> Validator
+validator confirmation = mkValidatorScript $
+    $$(PlutusTx.compile [|| mkValidator ||])
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode confirmation
+
+-- Serialize the validator
+import Plutus.V2.Ledger.Scripts
+import Plutus.V2.Ledger.Api
+
+orderFinalizationValidator :: Validator
+orderFinalizationValidator = validator yourOrderConfirmation
+
+serializedValidator :: Script
+serializedValidator = unValidatorScript orderFinalizationValidator
+
+-- Save the serialized validator to a file or use it in a transaction

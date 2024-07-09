@@ -1,0 +1,76 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
+module Consumer where
+
+import Plutus.V2.Ledger.Api
+import Plutus.V2.Ledger.Contexts
+import Plutus.V2.Ledger.Tx
+import Plutus.V2.Ledger.Value
+import PlutusTx
+import PlutusTx.Prelude hiding (Semigroup(..), unless)
+import Prelude (IO, Semigroup(..))
+
+-- Define the data structure for a Purchase
+data Purchase = Purchase
+    { designNFT :: ByteString
+    , price :: Integer
+    }
+
+PlutusTx.unstableMakeIsData ''Purchase
+
+-- Define the validator for purchase transactions
+{-# INLINABLE purchaseValidator #-}
+purchaseValidator :: Purchase -> () -> ScriptContext -> Bool
+purchaseValidator purchase () ctx = traceIfFalse "Incorrect price paid" validPrice &&
+                                    traceIfFalse "Invalid design NFT" validDesignNFT
+  where
+    txInfo :: TxInfo
+    txInfo = scriptContextTxInfo ctx
+
+    -- Check that the correct price is paid
+    validPrice :: Bool
+    validPrice = any (\i -> txOutValue (txInInfoResolved i) `geq` Ada.lovelaceValueOf (price purchase)) (txInfoInputs txInfo)
+
+    -- Check that the design NFT is valid
+    validDesignNFT :: Bool
+    validDesignNFT = any (\o -> txOutValue o `geq` singleton (policyId designNFT) (TokenName (designNFT purchase)) 1) (txInfoOutputs txInfo)
+
+-- Define the function to handle purchase logic
+{-# INLINABLE processPurchase #-}
+processPurchase :: Purchase -> ScriptContext -> Bool
+processPurchase purchase ctx =
+    let
+        txInfo = scriptContextTxInfo ctx
+        inputs = txInfoInputs txInfo
+        outputs = txInfoOutputs txInfo
+        pricePaid = any (\i -> txOutValue (txInInfoResolved i) `geq` Ada.lovelaceValueOf (price purchase)) inputs
+        validNFT = any (\o -> txOutValue o `geq` singleton (policyId designNFT) (TokenName (designNFT purchase)) 1) outputs
+    in
+        traceIfFalse "Incorrect price paid" pricePaid &&
+        traceIfFalse "Invalid design NFT" validNFT
+
+-- Validator script
+{-# INLINABLE mkValidator #-}
+mkValidator :: Purchase -> () -> ScriptContext -> Bool
+mkValidator purchase () ctx = purchaseValidator purchase () ctx
+
+validator :: Purchase -> Validator
+validator purchase = mkValidatorScript $
+    $$(PlutusTx.compile [|| mkValidator ||])
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode purchase
+
+-- Serialize the validator
+import Plutus.V2.Ledger.Scripts
+import Plutus.V2.Ledger.Api
+
+purchaseValidator :: Validator
+purchaseValidator = validator yourPurchase
+
+serializedValidator :: Script
+serializedValidator = unValidatorScript purchaseValidator
+
+-- Save the serialized validator to a file or use it in a transaction

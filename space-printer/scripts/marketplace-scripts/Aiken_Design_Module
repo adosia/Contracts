@@ -1,0 +1,71 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
+module Designer where
+
+import Plutus.V2.Ledger.Api
+import Plutus.V2.Ledger.Contexts
+import Plutus.V2.Ledger.Tx
+import Plutus.V2.Ledger.Value
+import PlutusTx
+import PlutusTx.Prelude hiding (Semigroup(..), unless)
+import Prelude (IO, Semigroup(..))
+
+-- Define the data structure for a Design
+data Design = Design
+    { category :: ByteString
+    , name :: ByteString
+    , thumbnail :: ByteString
+    , model :: ByteString
+    , stlFiles :: [ByteString]
+    , royalty :: Maybe Integer
+    }
+
+PlutusTx.unstableMakeIsData ''Design
+
+-- Define the minting policy for design NFTs
+{-# INLINABLE designPolicy #-}
+designPolicy :: Design -> ScriptContext -> Bool
+designPolicy design ctx = traceIfFalse "Invalid minting context" validMinting
+  where
+    txInfo :: TxInfo
+    txInfo = scriptContextTxInfo ctx
+
+    validMinting :: Bool
+    validMinting = all (\i -> txOutValue (txInInfoResolved i) `geq` Ada.lovelaceValueOf 0) (txInfoInputs txInfo)
+
+-- Define the NFT minting function
+{-# INLINABLE designNFT #-}
+designNFT :: Design -> (ByteString, TxOut)
+designNFT design =
+    let
+        nft = ByteString.append "nft-" (name design)
+        value = singleton (policyId design) (TokenName nft) 1
+        txOut = TxOut (pubKeyHashAddress (txOutAddress output)) value Nothing
+    in
+        (nft, txOut)
+
+-- Minting policy script
+{-# INLINABLE mkPolicy #-}
+mkPolicy :: Design -> () -> ScriptContext -> Bool
+mkPolicy design () ctx = designPolicy design ctx
+
+policy :: Design -> MintingPolicy
+policy design = mkMintingPolicyScript $
+    $$(PlutusTx.compile [|| mkPolicy ||])
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode design
+
+-- Serialize the minting policy
+import Plutus.V2.Ledger.Scripts
+import Plutus.V2.Ledger.Api
+
+mintingPolicy :: MintingPolicy
+mintingPolicy = policy yourDesign
+
+serializedPolicy :: Script
+serializedPolicy = unMintingPolicyScript mintingPolicy
+
+-- Save the serialized policy to a file or use it in a transaction
